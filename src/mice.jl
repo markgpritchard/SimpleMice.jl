@@ -51,11 +51,11 @@ end
 ## Create a DataFrame that will hold temporary values for each variable 
 
 function initializetempdf(df, binvars, contvars, noimputevars; kwargs...)
-    tempdf = DataFrame(
+    tempdf = DataFrame([
         [ var => initializebinarytempvalues(df, var) for var ∈ binvars ];
         [ var => initializecontinuoustempvalues(df, var) for var ∈ contvars ];
         [ var => getproperty(df, var) for var ∈ noimputevars ]
-    )
+    ])
     return tempdf
 end 
 
