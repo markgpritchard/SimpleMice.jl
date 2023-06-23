@@ -85,35 +85,39 @@ end
 # Output type for imputed values
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-struct ImputedDataFrame 
+abstract type AbstractImputedData end 
+
+abstract type ImputedVector <: AbstractImputedData end
+
+struct ImputedDataFrame <: AbstractImputedData
     originaldf          :: DataFrame 
     numberimputed       :: Int 
     imputeddfs          :: Vector{DataFrame}
 end 
 
-struct ImputedVectorInt
+struct ImputedVectorInt <: ImputedVector
     numberimputed       :: Int 
-    imputedvalues       :: Vector{Int}
+    imputedvalues       :: Vector{Vector{Int}}
 end 
 
-struct ImputedVectorFloat64
+struct ImputedVectorFloat64 <: ImputedVector
     numberimputed       :: Int 
-    imputedvalues       :: Vector{Float64}
+    imputedvalues       :: Vector{Vector{Float64}}
 end 
 
-struct ImputedVectorBool
+struct ImputedVectorBool <: ImputedVector
     numberimputed       :: Int 
-    imputedvalues       :: Vector{Bool}
+    imputedvalues       :: Vector{Vector{Bool}}
 end 
 
-struct ImputedVectorString
+struct ImputedVectorString <: ImputedVector
     numberimputed       :: Int 
-    imputedvalues       :: Vector{<:AbstractString}
+    imputedvalues       :: Vector{Vector{<:AbstractString}}
 end 
 
-struct ImputedVectorAny
+struct ImputedVectorAny <: ImputedVector
     numberimputed       :: Int 
-    imputedvalues       :: Vector
+    imputedvalues       :: Vector{Vector}
 end 
 
 
