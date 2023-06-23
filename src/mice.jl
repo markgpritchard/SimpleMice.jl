@@ -1,10 +1,11 @@
 
 """
-    mice(df[, vars::Vector; <keyword arguments>]) 
-    mice(df, var1, vars...[; <keyword arguments>]) 
-    mice(df, bv::Vector, cv::Vector, niv::Vector[; <keyword arguments>]) 
+    mice(df[, vars::Vector; kwargs...]) 
+    mice(df, var1, vars...[; kwargs...]) 
+    mice(df, bv::Vector, cv::Vector, niv::Vector[; kwargs...]) 
 
-Takes a `DataFrame` and imputes missing values by multiple imputation by chained equations.
+Takes a `DataFrame` and imputes missing values using multiple imputation by chained 
+    equations.
 
 `df` is the DataFrame with missing data. `vars` is a vector of variables to be used 
     for the multiple imputation algorithm. These can also be presented as arguments: 
@@ -48,7 +49,9 @@ function mice(df, var1, vars...; kwargs...)
 end  
 
 
-## Create a DataFrame that will hold temporary values for each variable 
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# Create a DataFrame that will hold temporary values for each variable 
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 function initializetempdf(df, binvars, contvars, noimputevars; kwargs...)
     tempdf = DataFrame([
@@ -59,7 +62,10 @@ function initializetempdf(df, binvars, contvars, noimputevars; kwargs...)
     return tempdf
 end 
 
-## Initialize binary variables 
+
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# Initialize binary variables 
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 function initializebinarytempvalues(df::DataFrame, var::Symbol; kwargs...)
     variable = getproperty(df, var)
@@ -122,7 +128,9 @@ function initializebinarytempvalue(value::Missing, variable::Vector, nonmissings
 end 
 
 
-## Initialize continuous variables 
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# Initialize continuous variables 
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 function initializecontinuoustempvalues(df::DataFrame, var::Symbol; kwargs...)
     variable = getproperty(df, var)
@@ -162,7 +170,9 @@ function initializecontinuoustempvalue(value::Missing, variable::Vector{T}, nonm
 end 
 
 
-## Identify non-missing values 
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# Identify non-missing values 
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 function identifynonmissings(variable::Vector{T}) where T <: AbstractTempImputedValues
     return findall(x -> !x.originalmiss, variable)
@@ -171,7 +181,9 @@ end
 identifynonmissings(variable) = findall(x -> !ismissing(x), variable)
 
 
-## Impute values 
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# Impute values 
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 function impute!(tempdf, binvars, contvars, noimputevars, df; m = 100, initialvaluesfunc = sample, kwargs...)
     td = deepcopy(tempdf)
@@ -196,7 +208,8 @@ end
 function initialbinvalue!(tempdf, initialvaluesfunc, v) 
     if initialbinvaluecounter() == 1  
         @info """
-        Initial values of binary variables are always selected by sample, regardless of initialvaluesfunc argument
+        Initial values of binary variables are always selected by sample, regardless 
+            of initialvaluesfunc argument
         """ 
     end 
     initialvalue!(tempdf, sample, v)
@@ -223,12 +236,7 @@ function insertinitialvalue!(tempdf, i, var, initialvalue::AbstractString)
     tempdf[i, var].imputedvalue = initialtruth 
 end 
 
-function makeworkingdf(df) 
-    workingdf = DataFrame(
-        [ var => makeworkingdf(df, var) for var ∈ names(df) ]
-    )
-    return workingdf
-end 
+makeworkingdf(df) = DataFrame([ var => makeworkingdf(df, var) for var ∈ names(df) ])
 
 function makeworkingdf(df, var)
     variable = getproperty(df, var) 
