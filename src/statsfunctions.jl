@@ -37,7 +37,7 @@ function rubinsvar(q::Vector, u::Vector, n::Int)
 end 
 
 """
-    withinimputationvar(u::Vector, n::Int) = sum(u) / n 
+    withinimputationvar(u::Vector, n::Int) 
 
 Calculates a mean within-imputation variance from multiple imputed datasets. 
 

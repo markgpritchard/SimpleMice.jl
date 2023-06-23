@@ -1,8 +1,8 @@
 
 """
-    mice(df[, vars::Vector; kwargs...]) 
-    mice(df, var1, vars...[; kwargs...]) 
-    mice(df, bv::Vector, cv::Vector, niv::Vector[; kwargs...]) 
+    mice(df[, vars::Vector]; <keyword arguments>) 
+    mice(df, var1, vars...; <keyword arguments>) 
+    mice(df, bv::Vector, cv::Vector, niv::Vector; <keyword arguments>) 
 
 Takes a `DataFrame` and imputes missing values using multiple imputation by chained 
     equations.
