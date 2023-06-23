@@ -27,7 +27,7 @@ function classifyvars!(vars, binvars, contvars, noimputevars, df; printdropped)
     newcontvars = choosecontvars(df, vars, cv) 
     initialclassifyvars!(vars, newcontvars, cv)
     if printdropped
-        if length(vars > 0)
+        if length(vars) > 0
             @warn """
             The following variables are not not included in imputation: $vars.
             If you wish these to be included, check the use of keywords binvars, 
@@ -39,8 +39,8 @@ function classifyvars!(vars, binvars, contvars, noimputevars, df; printdropped)
 end 
 
 # remove those that are already placed into a category from the main vars list
-function initialclassifyvars!(vars, binvars, contvars, noimputevars)
-    for v ∈ [ binvars, contvars, noimputevars ] initialclassifyvars!(vars, v) end 
+function initialclassifyvars!(vars, bv, cv, niv)
+    for v ∈ [ bv, cv, niv ] initialclassifyvars!(vars, v) end 
 end 
 
 initialclassifyvars!(vars, v::Nothing) = nothing
@@ -73,14 +73,14 @@ end
 function choosebinvar!(newbinvars, df, var, varvector::Vector{MissBool}) 
     # if the input variable is a Bool then this will always be treated as a binary 
     # variable 
-    push!(binvars, var)
+    push!(newbinvars, var)
 end 
 
 function choosebinvar!(newbinvars, df, var, varvector::Vector{MissInt}) 
     # integer variables are treated as binary if their only values are 0 and 1 
-    nmvector = identifynonmissing(varvector)
+    nmvector = varvector[identifynonmissings(varvector)]
     if maximum(nmvector) == 1 && minimum(nmvector) == 0 
-        push!(binvars, var)
+        push!(newbinvars, var)
     else 
         nothing 
     end 
@@ -88,9 +88,9 @@ end
 
 function choosebinvar!(newbinvars, df, var, varvector::Vector{MissString}) 
     # string variables are treated as binary if they only have two non-missing values 
-    nmvector = identifynonmissing(varvector)
+    nmvector = varvector[identifynonmissings(varvector)]
     if size(unique(nmvector), 1) == 2 
-        push!(binvars, var)
+        push!(newbinvars, var)
     else 
         nothing 
     end 
@@ -116,7 +116,7 @@ function choosenoimputevar!(newnoimputevars, df, var)
 end 
 
 function choosecontvars(df, vars, contvars::Nothing)
-    return vars 
+    return deepcopy(vars) # deepcopy, otherwise lose these variables when vars is subsequently filtered 
 end 
 
 function choosecontvars(df, vars, contvars::Vector{T}) where T <: Symbol

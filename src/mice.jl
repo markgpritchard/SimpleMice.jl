@@ -97,12 +97,19 @@ function initializebinarytempvalue(value::Missing, variable::Vector{T}, nonmissi
 end 
 
 function initializebinarytempvalue(value::AbstractString, variable::Vector{T}, nonmissings, originalmin, originalmax) where T <: MissString
-    return BinaryStringTempImputedValues(value, originalmin, originalmax, false, value, value)
+    originalmiss = false
+    return initializebinarytempvalue(value, variable, nonmissings, originalmin, originalmax, originalmiss, value) 
 end 
 
 function initializebinarytempvalue(value::Missing, variable::Vector{T}, nonmissings, originalmin, originalmax) where T <: MissString
+    originalmiss = true
     initialvalue = variable[sample(nonmissings)]
-    return BinaryStringTempImputedValues(initialvalue, originalmin, originalmax, true, initialvalue, initialvalue)
+    return initializebinarytempvalue(value, variable, nonmissings, originalmin, originalmax, originalmiss, initialvalue) 
+end 
+
+function initializebinarytempvalue(value, variable::Vector{T}, nonmissings, originalmin, originalmax, originalmiss, initialvalue) where T <: MissString
+    initialtruth = initialvalue == originalmax
+    return BinaryStringTempImputedValues(initialvalue, originalmin, originalmax, originalmiss, initialtruth, initialtruth)
 end 
 
 function initializebinarytempvalue(value, variable::Vector, nonmissings, originalmin, originalmax)
@@ -127,29 +134,29 @@ function initializecontinuoustempvalues(variable::Vector, nonmissings::Vector; k
     return [ initializecontinuoustempvalue(variable[i], variable, nonmissings) for i ∈ eachindex(variable) ]
 end 
 
-function initializecontinuousinttempvalue(value::Int, variable::Vector{T}, nonmissings) where T <: MissInt
+function initializecontinuoustempvalue(value::Int, variable::Vector{T}, nonmissings) where T <: MissInt
     return ContinuousIntTempImputedValues(value, false, value)
 end 
 
-function initializecontinuousinttempvalue(value::Missing, variable::Vector{T}, nonmissings) where T <: MissInt
+function initializecontinuoustempvalue(value::Missing, variable::Vector{T}, nonmissings) where T <: MissInt
     initialvalue = variable[sample(nonmissings)]
     return ContinuousIntTempImputedValues(initialvalue, true, initialvalue)
 end 
 
-function initializecontinuousinttempvalue(value::Float64, variable::Vector{T}, nonmissings) where T <: MissFloat
+function initializecontinuoustempvalue(value::Float64, variable::Vector{T}, nonmissings) where T <: MissFloat
     return ContinuousFloatTempImputedValues(value, false, value)
 end 
 
-function initializecontinuousinttempvalue(value::Missing, variable::Vector{T}, nonmissings) where T <: MissFloat
+function initializecontinuoustempvalue(value::Missing, variable::Vector{T}, nonmissings) where T <: MissFloat
     initialvalue = variable[sample(nonmissings)]
     return ContinuousFloatTempImputedValues(initialvalue, true, initialvalue)
 end 
 
-function initializecontinuousinttempvalue(value::Number, variable::Vector{T}, nonmissings) where T <: MissNumber
+function initializecontinuoustempvalue(value::Number, variable::Vector{T}, nonmissings) where T <: MissNumber
     return ContinuousAnyTempImputedValues(value, false, value)
 end 
 
-function initializecontinuousinttempvalue(value::Missing, variable::Vector{T}, nonmissings) where T <: MissNumber
+function initializecontinuoustempvalue(value::Missing, variable::Vector{T}, nonmissings) where T <: MissNumber
     initialvalue = variable[sample(nonmissings)]
     return ContinuousAnyTempImputedValues(initialvalue, true, initialvalue)
 end 
@@ -167,56 +174,70 @@ identifynonmissings(variable) = findall(x -> !ismissing(x), variable)
 ## Impute values 
 
 function impute!(tempdf, binvars, contvars, noimputevars, df; m = 100, initialvaluesfunc = sample, kwargs...)
-    initialvalues!(tempdf, initialvaluesfunc, binvars, contvars, noimputevars)
-    for _ ∈ 1:m imputevalues!(tempdf, binvars, contvars; kwargs...) end 
-    finaldf = preparefinaldf(tempdf, binvars, contvars, df) 
+    td = deepcopy(tempdf)
+    initialvalues!(td, initialvaluesfunc, binvars, contvars, noimputevars)
+    for _ ∈ 1:m imputevalues!(td, binvars, contvars; kwargs...) end 
+    finaldf = preparefinaldf(td, binvars, contvars, df) 
     return finaldf
 end 
 
-function initialvalues!(df, initialvaluesfunc, binvars, contvars, noimputevars)
-    for v ∈ binvars initialbinvalue!(df, initialvaluesfunc, v) end 
-    for v ∈ contvars initialvalue!(df, initialvaluesfunc, v) end 
+function initialvalues!(tempdf, initialvaluesfunc, binvars, contvars, noimputevars)
+    for v ∈ binvars initialbinvalue!(tempdf, initialvaluesfunc, v) end 
+    for v ∈ contvars initialvalue!(tempdf, initialvaluesfunc, v) end 
 end
 
-initialbinvalue!(df, initialvaluesfunc::Sample, v) = initialvalue!(df, initialvaluesfunc, v)
+initialbinvalue!(tempdf, initialvaluesfunc::Sample, v) = initialvalue!(tempdf, initialvaluesfunc, v)
 
 # Counter - user receives exactly one notification about sending other functions to initialbinvalue!
 let initialbinvaluestate = 0
     global initialbinvaluecounter() = (initialbinvaluestate += 1)
 end
 
-function initialbinvalue!(df, initialvaluesfunc, v) 
+function initialbinvalue!(tempdf, initialvaluesfunc, v) 
     if initialbinvaluecounter() == 1  
         @info """
         Initial values of binary variables are always selected by sample, regardless of initialvaluesfunc argument
         """ 
     end 
-    initialvalue!(df, sample, v)
+    initialvalue!(tempdf, sample, v)
 end 
 
-function initialvalue!(df, initialvaluesfunc, var)
-    variable = getproperty(df, var)
+function initialvalue!(tempdf, initialvaluesfunc, var)
+    variable = getproperty(tempdf, var)
     nm = identifynonmissings(variable)
     nmvariablevalues = [ variable[i].originalvalue for i ∈ nm ]
     for (i, v) ∈ enumerate(variable)
-        if variable.originalmiss 
+        if v.originalmiss 
             initialvalue = initialvaluesfunc(nmvariablevalues)
-            df[i, var].imputedvalue = initialvalue 
+            insertinitialvalue!(tempdf, i, var, initialvalue)
         end 
     end 
 end 
 
+function insertinitialvalue!(tempdf, i, var, initialvalue)
+    tempdf[i, var].imputedvalue = initialvalue 
+end 
+
+function insertinitialvalue!(tempdf, i, var, initialvalue::AbstractString)
+    initialtruth = initialvalue == tempdf[i, var].originalmaximum
+    tempdf[i, var].imputedvalue = initialtruth 
+end 
+
 function makeworkingdf(df) 
     workingdf = DataFrame(
-        [ var => makeworkingdf(df, var) for var ∈ binvars ];
-        [ var => makeworkingdf(df, var) for var ∈ contvars ];
-        [ var => getproperty(df, var) for var ∈ noimputevars ]
+        [ var => makeworkingdf(df, var) for var ∈ names(df) ]
     )
     return workingdf
 end 
 
 function makeworkingdf(df, var)
     variable = getproperty(df, var) 
+    return _makeworkingdf(variable)
+end 
+
+_makeworkingdf(variable) = variable
+
+function _makeworkingdf(variable::Vector{T}) where T <: AbstractTempImputedValues
     return [ v.imputedvalue for v ∈ variable ]
 end 
 
@@ -226,20 +247,20 @@ function imputevalues!(df, binvars, contvars; kwargs...)
 end 
 
 function imputebinvalues!(df, var; kwargs...) 
-    workingdf, formula = prepareimputevalues(df, var; kwargs...) 
-    regr = glm(formula, df, Binomial(), ProbitLink())
+    workingdf, fla = prepareimputevalues(df, var; kwargs...) 
+    regr = fit(GeneralizedLinearModel, fla, workingdf, Binomial())
     predictions = predict(regr)
     for (i, v) ∈ enumerate(getproperty(df, var)) 
         if v.originalmiss 
             df[i, var].probability = predictions[i]
-            df[i, var].imputedvalue = rand < predictions[i]
+            df[i, var].imputedvalue = rand() < predictions[i]
         end 
     end 
 end 
 
 function imputecontvalues!(df, var; kwargs...) 
-    workingdf, formula = prepareimputevalues(df, var; kwargs...) 
-    regr = lm(formula, df)
+    workingdf, fla = prepareimputevalues(df, var; kwargs...) 
+    regr = fit(LinearModel, fla, workingdf)
     predictions = predict(regr)
     for (i, v) ∈ enumerate(getproperty(df, var)) 
         if v.originalmiss df[i, var].imputedvalue = predictions[i] end 
@@ -248,16 +269,35 @@ end
 
 function prepareimputevalues(df, var; kwargs...) 
     workingdf = makeworkingdf(df)
-    formula = Term(var) ~ sum(Term.(Symbol.(names(df[:, Not(var)]))))
-    return ( workingdf, formula )
+    fla = Term(var) ~ sum(Term.(Symbol.(names(df[:, Not(var)]))))
+    return ( workingdf, fla )
 end 
 
-function preparefinaldf(tempdf, binvars, contvars, df) 
+function preparefinaldf(td, binvars, contvars, df) 
     newdf = deepcopy(df) 
-    for var ∈ names(newdf) 
+    for var ∈ Symbol.(names(newdf))
         if var ∈ binvars || var ∈ contvars
-            newdf[:, var] = [ tempdf[i, var].imputedvalue for i ∈ eachindex(getproperty(tempdf, var)) ]
+            imputedvector = getproperty(td, var) 
+            updatedfinaldf!(newdf, imputedvector, var)
         end 
     end 
     return newdf
+end 
+
+function updatedfinaldf!(newdf, imputedvector, var) 
+    newdf[:, var] = [ finaldfvalue(v) for v ∈ imputedvector ] 
+end 
+
+finaldfvalue(v) = v.imputedvalue 
+
+function finaldfvalue(v::BinaryStringTempImputedValues)
+    if v.originalmiss 
+        if v.imputedvalue 
+            return v.originalmaximum 
+        else # not v.imputedvalue 
+            return v.originalminimum 
+        end # if v.imputedvalue 
+    else # not v.originalmiss
+        return v.originalvalue 
+    end # if v.originalmiss
 end 

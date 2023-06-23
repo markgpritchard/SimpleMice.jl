@@ -7,7 +7,8 @@ MissInt = Union{Int, Missing}
 MissBool = Union{Bool, Missing}
 MissFloat = Union{T, Missing} where T <: Float64
 MissNumber = Union{T, Missing} where T <: Number
-MissString = Union{T, Missing} where T <: AbstractString
+#MissString = Union{T, Missing} where T <: AbstractString
+MissString = Union{Missing, String}
 
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -56,7 +57,7 @@ mutable struct BinaryIntTempImputedValues <: BinaryTempImputedValues
     originalvalue       :: Int 
     originalminimum     :: Int 
     originalmaximum     :: Int 
-    orginalmiss         :: Bool 
+    originalmiss        :: Bool 
     probability         :: Float64 
     imputedvalue        :: Bool  
 end 
@@ -65,7 +66,7 @@ mutable struct BinaryStringTempImputedValues <: BinaryTempImputedValues
     originalvalue       :: AbstractString 
     originalminimum     :: AbstractString 
     originalmaximum     :: AbstractString 
-    orginalmiss         :: Bool 
+    originalmiss        :: Bool 
     probability         :: Float64 
     imputedvalue        :: Bool  
 end 
@@ -74,7 +75,7 @@ mutable struct BinaryAnyTempImputedValues <: BinaryTempImputedValues
     originalvalue       :: Any 
     originalminimum     :: Any 
     originalmaximum     :: Any 
-    orginalmiss         :: Bool 
+    originalmiss        :: Bool 
     probability         :: Float64 
     imputedvalue        :: Bool  
 end 
