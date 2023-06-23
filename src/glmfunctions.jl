@@ -1,16 +1,19 @@
 
 """
-    fit(model::Type{T}, formula::FormulaTerm, idf::ImputedDataFrame) where T <: RegressionModel 
+    fit(model::Type{T}, formula::FormulaTerm, idf::ImputedDataFrame, 
+        <additional arguments>; <keyword arguments>) where T <: RegressionModel
 
 Apply the model to each imputed dataset, then produce summary statistics across all
     imputed results. 
 
 Results currently have p-values that are too small so should not be used.
 """
-function fit(model::Type{T}, formula::FormulaTerm, idf::ImputedDataFrame) where T <: RegressionModel
+function fit(model::Type{T}, formula::FormulaTerm, idf::ImputedDataFrame, args...; 
+        kwargs...
+    ) where T <: RegressionModel
     n = idf.numberimputed
     samplesize = size(idf.imputeddfs[1], 1)
-    regrs = [ fit(model, formula, idf.imputeddfs[i]) for i ∈ 1:n ]
+    regrs = [ fit(model, formula, idf.imputeddfs[i], args...; kwargs...) for i ∈ 1:n ]
     coefnamelist = coefnames(regrs[1])
     coefficientmatrix = makreregressionmatrix(coef, regrs, coefnamelist, n)
     coefs = rubinscoefficients(coefficientmatrix, n)
@@ -25,6 +28,29 @@ function fit(model::Type{T}, formula::FormulaTerm, idf::ImputedDataFrame) where 
     printfit(resultsmatrix, formula, n)
     return ( coefnames = coefnamelist, coef = coefs, stderror = sterrors, t = tvalues, 
         pvalue = pvalues, confint = confints )
+end 
+
+"""
+    lm(formula::FormulaTerm, idf::ImputedDataFrame, <additional arguments>; <keyword arguments>)
+
+Fit a generalized linear model to data. Alias for 
+    `fit(LinearModel, formula, idf, <additional arguments>; <keyword arguments>)`.
+"""
+function lm(formula::FormulaTerm, idf::ImputedDataFrame, args...; kwargs...) 
+    return fit(LinearModel, formula, idf, args...; kwargs...) 
+end 
+
+"""
+    glm(formula::FormulaTerm, idf::ImputedDataFrame, distr::UnivariateDistribution, 
+        link::Link = canonicallink(distr); <keyword arguments>)
+
+Fit a generalized linear model to data. Alias for 
+    `fit(GeneralizedLinearModel, formula, idf, distr, link; <keyword arguments>)`.
+"""
+function glm(formula::FormulaTerm, idf::ImputedDataFrame, distr::UnivariateDistribution, 
+        link::Link = canonicallink(distr); kwargs...
+    )
+    return fit(GeneralizedLinearModel, formula, idf, distr, link; kwargs...)
 end 
 
 function rubinscoefficients(coefficientmatrix, n)

@@ -4,7 +4,7 @@ module SimpleMice
 using DataFrames, Distributions, GLM, PrettyTables, Random, StatsBase
 using HypothesisTests: confint, OneSampleTTest, pvalue
 import StatsBase: mean, std, var
-import GLM: fit
+import GLM: fit, glm, lm
 
 include("types.jl")
 include("constants.jl")
@@ -19,6 +19,6 @@ export getvalues,
     betweenimputationvar, rubinsmean, rubinsvar, withinimputationvar,
     componentmeans, componentvars,
     mean, std, var,
-    fit
+    fit, glm, lm
 
 end
