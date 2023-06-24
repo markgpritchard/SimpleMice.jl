@@ -7,7 +7,6 @@ MissInt = Union{Int, Missing}
 MissBool = Union{Bool, Missing}
 MissFloat = Union{T, Missing} where T <: Float64
 MissNumber = Union{T, Missing} where T <: Number
-#MissString = Union{T, Missing} where T <: AbstractString
 MissString = Union{Missing, String}
 
 
@@ -126,7 +125,7 @@ end
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 # It would be nice to wrap the output of the regression of imputed datasets into 
-# the same structure as the regression of a DataFrame, but for now this allows key 
+# the same structure as the regression of a DataFrame, but for now this allows main 
 # results to be saved
 
 struct ImputedRegressionResult
