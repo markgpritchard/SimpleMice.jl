@@ -20,7 +20,7 @@ Note, this function does not test whether `length(q) == n`.
 rubinsmean(q::Vector, n::Int) = sum(q) / n
 
 """
-    function rubinsvar(q::Vector, u::Vector, n::Int)
+    rubinsvar(q::Vector, u::Vector, n::Int)
 
 Calculates a variance from multiple imputed datasets according to Rubin's rules. 
 
@@ -31,9 +31,26 @@ Note, this function does not test whether `length(q) == n`.
 """
 function rubinsvar(q::Vector, u::Vector, n::Int)
     ubar = withinimputationvar(u, n)
-    b = betweenimputationvar(q, u, n)
+    b = betweenimputationvar(q, n)
     v = ubar + (1 + 1 / n) * b 
     return v 
+end 
+
+"""
+    rubinssterror(q::Vector, u::Vector, n::Int)
+
+Calculates a standard error from multiple imputed datasets according to Rubin's rules. 
+
+`q` is a vector of the mean from each imputed dataset, `u` is a vector of the standard 
+    error of each imputed dataset, and `n` is the number of imputed datasets.
+
+Note, this function does not test whether `length(q) == n`.
+"""
+function rubinssterror(q::Vector, u::Vector, n::Int)
+    ubar = withinimputationsterrorsquared(u, n)
+    b = betweenimputationvar(q, n)
+    v = ubar + (1 + 1 / n) * b 
+    return sqrt(v) 
 end 
 
 """
@@ -44,7 +61,7 @@ Calculates a mean within-imputation variance from multiple imputed datasets.
 `u` is a vector of the variance of each imputed dataset and `n` is the number of 
     imputed datasets.
 
-Note, this function does not test whether `length(q) == n`.
+Note, this function does not test whether `length(u) == n`.
 """
 withinimputationvar(u::Vector, n::Int) = sum(u) / n 
 
@@ -53,17 +70,30 @@ withinimputationvar(u::Vector, n::Int) = sum(u) / n
 
 Calculates between-imputation variance from multiple imputed datasets. 
 
-`q` is a vector of the mean from each imputed dataset, `u` is a vector of the variance 
-    of each imputed dataset, and `n` is the number of imputed datasets.
+`q` is a vector of the mean from each imputed dataset and `n` is the number of imputed 
+    datasets.
 
 Note, this function does not test whether `length(q) == n`.
 """
-function betweenimputationvar(q::Vector, u::Vector, n::Int)
+function betweenimputationvar(q::Vector, n::Int)
     qbar = rubinsmean(q, n)
     qsquarediff = @. (q - qbar)^2
     b = sum(qsquarediff) / (n - 1)
     return b 
 end 
+
+"""
+    withinimputationsterrorsquared(u::Vector, n::Int)
+
+Calculates a mean within-imputation standard error squared from multiple imputed 
+    datasets. 
+
+`u` is a vector of the standard error of each imputed dataset and `n` is the number 
+    of imputed datasets.
+
+Note, this function does not test whether `length(u) == n`.
+"""
+withinimputationsterrorsquared(u::Vector, n::Int) = sum([ v^2 for v ∈ u ]) / n 
 
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -83,18 +113,6 @@ componentmeans(d::ImputedVector) = [ mean(d.imputedvalues[i]) for i ∈ 1:d.numb
 Produces a `Vector` of the variance of each imputed vector. 
 """
 componentvars(d::ImputedVector) = [ var(d.imputedvalues[i]) for i ∈ 1:d.numberimputed ]
-
-function sterrortovar(sterror, n)
-    std = sterror * sqrt(n) 
-    var = std^2 
-    return var 
-end 
-
-function vartosterror(var, n)
-    std = sqrt(var) 
-    sterror = std / sqrt(n)
-    return sterror 
-end 
 
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~

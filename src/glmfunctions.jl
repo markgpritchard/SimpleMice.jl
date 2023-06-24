@@ -14,20 +14,7 @@ function fit(model::Type{T}, formula::FormulaTerm, idf::ImputedDataFrame, args..
     n = idf.numberimputed
     samplesize = size(idf.imputeddfs[1], 1)
     regrs = [ fit(model, formula, idf.imputeddfs[i], args...; kwargs...) for i ∈ 1:n ]
-    coefnamelist = coefnames(regrs[1])
-    coefficientmatrix = makreregressionmatrix(coef, regrs, coefnamelist, n)
-    coefs = rubinscoefficients(coefficientmatrix, n)
-    varmatrix = makevarmatrix(regrs, coefs, n, samplesize)
-    vars = rubinsvars(coefficientmatrix, varmatrix, n)
-    sterrors = vartosterror.(vars, n)
-    tcalcs = [ OneSampleTTest(coefs[i], sterrors[i], samplesize) for i ∈ eachindex(coefs) ]
-    tvalues = [ tcalcs[i].t for i ∈ eachindex(coefs) ]
-    pvalues = pvalue.(tcalcs)
-    confints = confint.(tcalcs)
-    resultsmatrix = makeresultsmatrix(coefnamelist, coefs, sterrors, tvalues, pvalues, confints)
-    printfit(resultsmatrix, formula, n)
-    return ( coefnames = coefnamelist, coef = coefs, stderror = sterrors, t = tvalues, 
-        pvalue = pvalues, confint = confints )
+    return processfit(regrs, formula, n, samplesize)
 end 
 
 """
@@ -53,15 +40,47 @@ function glm(formula::FormulaTerm, idf::ImputedDataFrame, distr::UnivariateDistr
     return fit(GeneralizedLinearModel, formula, idf, distr, link; kwargs...)
 end 
 
+function processfit(regrs, formula, n, samplesize)
+    coefnamelist = coefnames(regrs[1])
+    coefs, coefficientmatrix = fitcoefficients(regrs, coefnamelist, n)
+    stderrors = fitstderrors(regrs, coefnamelist, n, coefficientmatrix)
+    tvalues, tcalcs = fittvalues(coefs, stderrors, samplesize)
+    pvalues = pvalue.(tcalcs)
+    confints = confint.(tcalcs)
+    regressionresults = ImputedRegressionResult(
+        formula, n, coefnamelist, coefs, stderrors, tvalues, pvalues, confints
+    )
+    printfit(regressionresults)
+    return regressionresults 
+end 
+
+function fitcoefficients(regrs, coefnamelist, n)
+    coefficientmatrix = makreregressionmatrix(coef, regrs, coefnamelist, n)
+    coefs = rubinscoefficients(coefficientmatrix, n)
+    return ( coefs, coefficientmatrix )
+end 
+
+function fitstderrors(regrs, coefnamelist, n, coefficientmatrix)
+    stderrormatrix = makreregressionmatrix(stderror, regrs, coefnamelist, n)
+    return rubinsstderrors(coefficientmatrix, stderrormatrix, n) 
+end 
+
+function fittvalues(coefs, sterrors, samplesize)
+    tcalcs = [ OneSampleTTest(coefs[i], sterrors[i] * sqrt(samplesize), samplesize) 
+        for i ∈ eachindex(coefs) ]
+    tvalues = [ tcalcs[i].t for i ∈ eachindex(coefs) ]
+    return ( tvalues, tcalcs )
+end 
+
 function rubinscoefficients(coefficientmatrix, n)
     coefs = [ rubinsmean(coefficientmatrix[i, :], n) for i ∈ axes(coefficientmatrix, 1) ]
     return coefs 
 end 
 
-function rubinsvars(coefficientmatrix, varmatrix, n)
-    vars = [ rubinsvar(coefficientmatrix[i, :], varmatrix[i, :], n) 
+function rubinsstderrors(coefficientmatrix, stderrormatrix, n)
+    stderrors = [ rubinssterror(coefficientmatrix[i, :], stderrormatrix[i, :], n) 
         for i ∈ axes(coefficientmatrix, 1) ]
-    return vars
+    return stderrors
 end 
 
 function makreregressionmatrix(func, regrs, coefnamelist, n)
@@ -70,26 +89,22 @@ function makreregressionmatrix(func, regrs, coefnamelist, n)
     return regrmatrix
 end 
 
-function makevarmatrix(regrs, coefs, n, samplesize)
-    stderrormatrix = makreregressionmatrix(stderror, regrs, coefs, n)
-    varmatrix = sterrortovar.(stderrormatrix, samplesize) 
-    return varmatrix 
-end 
-
-function makeresultsmatrix(coefnamelist, coefs, sterrors, tvalues, pvalues, confints)
-    results = Array{Any, 2}(undef, length(coefnamelist), 7)
-    for i ∈ eachindex(coefnamelist)
-        for (j, t) ∈ enumerate([ coefnamelist, coefs, sterrors, tvalues, pvalues ])
-            results[i, j] = t[i] 
+function makeresultsmatrix(regressionresults)
+    ℓ = length(regressionresults.coefnames)
+    results = Array{Any, 2}(undef, ℓ, 7)
+    for i ∈ 1:ℓ
+        for (j, v) ∈ enumerate([ :coefnames, :coef, :stderror, :t, :pvalue ])
+            results[i, j] = getproperty(regressionresults, v)[i]
         end 
-        results[i, 6] = confints[i][1]
-        results[i, 7] = confints[i][2]
+        results[i, 6] = regressionresults.confint[i][1]
+        results[i, 7] = regressionresults.confint[i][2]
     end 
     return results
 end 
 
-function printfit(resultsmatrix, formula, n)
-    println("Regression results from $n imputed datasets")
-    println("$formula")
+function printfit(regressionresults)
+    resultsmatrix = makeresultsmatrix(regressionresults)
+    println("Regression results from $(regressionresults.n) imputed datasets")
+    println("$(regressionresults.formula)")
     @pt :header = regressionheadings resultsmatrix
 end 

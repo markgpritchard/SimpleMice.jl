@@ -16,7 +16,7 @@ include("glmfunctions.jl")
 
 export mice
 export getvalues,
-    betweenimputationvar, rubinsmean, rubinsvar, withinimputationvar,
+    betweenimputationvar, rubinsmean, rubinssterror, rubinsvar, withinimputationvar,
     componentmeans, componentvars,
     mean, std, var,
     fit, glm, lm

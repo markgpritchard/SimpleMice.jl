@@ -122,6 +122,26 @@ end
 
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# Type to output results of regression of imputed datasets
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+# It would be nice to wrap the output of the regression of imputed datasets into 
+# the same structure as the regression of a DataFrame, but for now this allows key 
+# results to be saved
+
+struct ImputedRegressionResult
+    formula             :: FormulaTerm
+    n                   :: Int
+    coefnames           :: Vector{String}
+    coef                :: Vector{Float64}
+    stderror            :: Vector{Float64}
+    t                   :: Vector{Float64}
+    pvalue              :: Vector{Float64}
+    confint             :: Vector{Tuple{Float64, Float64}}
+end
+
+
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # Type of function sample 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
