@@ -5,8 +5,6 @@
 
 Apply the model to each imputed dataset, then produce summary statistics across all
     imputed results. 
-
-Results currently have p-values that are too small so should not be used.
 """
 function fit(model::Type{T}, formula::FormulaTerm, idf::ImputedDataFrame, args...; 
         kwargs...
