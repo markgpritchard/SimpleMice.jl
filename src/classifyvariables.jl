@@ -57,7 +57,7 @@ function choosebinvars(df, vars, binvars::Nothing)
     return newbinvars 
 end 
 
-function choosebinvars(df, vars, binvars::Vector{T}) where T <: Symbol
+function choosebinvars(df, vars, binvars::Vector{<:Symbol})
     return binvars 
 end 
 
@@ -70,12 +70,12 @@ function choosebinvar!(newbinvars, df, var)
     choosebinvar!(newbinvars, df, var, varvector)
 end 
 
-function choosebinvar!(newbinvars, df, var, varvector::Vector{MissBool}) 
-    # if the input variable is a Bool then this will always be treated as a binary variable 
+function choosebinvar!(newbinvars, df, var, ::Vector{<:Union{T, Missing}}) where T <: Bool
+    # if input variable is a Bool then this will always be treated as a binary variable 
     push!(newbinvars, var)
 end 
 
-function choosebinvar!(newbinvars, df, var, varvector::Vector{MissInt}) 
+function choosebinvar!(newbinvars, df, var, varvector::Vector{<:Union{T, Missing}}) where T <: Integer
     # integer variables are treated as binary if their only values are 0 and 1 
     nmvector = varvector[identifynonmissings(varvector)]
     if maximum(nmvector) == 1 && minimum(nmvector) == 0 
@@ -85,7 +85,7 @@ function choosebinvar!(newbinvars, df, var, varvector::Vector{MissInt})
     end 
 end 
 
-function choosebinvar!(newbinvars, df, var, varvector::Vector{MissString}) 
+function choosebinvar!(newbinvars, df, var, varvector::Vector{<:Union{T, Missing}}) where T <: AbstractString
     # string variables are treated as binary if they only have two non-missing values 
     nmvector = varvector[identifynonmissings(varvector)]
     if size(unique(nmvector), 1) == 2 
@@ -103,7 +103,7 @@ function choosenoimputevars(df, vars, noimputevars::Nothing)
     return newnoimputevars 
 end 
 
-choosenoimputevars(df, vars, noimputevars::Vector{}) = noimputevars 
+choosenoimputevars(df, vars, noimputevars::Vector) = noimputevars 
 
 function choosenoimputevars!(newnoimputevars, df, vars)
     for var ∈ vars choosenoimputevar!(newnoimputevars, df, var) end 
@@ -120,7 +120,7 @@ function choosecontvars(df, vars, contvars::Nothing)
     return newcontvars 
 end 
 
-function choosecontvars(df, vars, contvars::Vector{T}) where T <: Symbol
+function choosecontvars(df, vars, contvars::Vector{<:Symbol}) 
     return contvars 
 end 
 
@@ -133,22 +133,8 @@ function choosecontvar!(newcontvars, df, var)
     choosecontvar!(newcontvars, df, var, varvector)
 end 
 
-# want a general function that captures any Union{<:Number, Missing} but not yet 
-# managed that 
-#=
-function choosecontvar!(newcontvars, df, var, varvector::Vector{MissNumber}) 
+function choosecontvar!(newcontvars, df, var, varvector::Vector{<:Union{T, Missing}}) where T <: Number
     push!(newcontvars, var)
 end 
-=#
-
-function choosecontvar!(newcontvars, df, var, varvector::Vector{MissFloat}) 
-    _choosecontvar!(newcontvars, df, var, varvector)
-end
-
-function choosecontvar!(newcontvars, df, var, varvector::Vector{MissInt}) 
-    _choosecontvar!(newcontvars, df, var, varvector)
-end
-
-_choosecontvar!(newcontvars, df, var, varvector) = push!(newcontvars, var)
 
 choosecontvar!(newcontvars, df, var, varvector::Vector) = nothing # for any other vector

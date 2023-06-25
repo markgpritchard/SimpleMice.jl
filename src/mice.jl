@@ -18,13 +18,13 @@ Takes a `DataFrame` and imputes missing values using multiple imputation by chai
 ## Keyword arguments 
 * Any of `binvars`, `contvars` and `noimputevars` can be supplied as keyword arguments 
     if not supplied as positional arguments.
-* `initialvaluesfunc`: Function used to give each missing datapoint a value at the 
-    start of the imputation algorithm. Defult = `StatsBase.sample`. (Note that `sample` 
-    is used for all binary [and categorical] variables regardless of this keyword 
-    argument.)
-* `m`: number of regressions to perform per variable with missing data during the 
-    imputation process. Default = 100. [To do: make this more dynamic]
-* `n`: number of imputed datasets to produce. Default = 5.
+* `initialvaluesfunc = StatsBase.sample`: Function used to give each missing datapoint a value at the 
+    start of the imputation algorithm. (Note that `sample` is used for all binary 
+    [and categorical] variables regardless of this keyword argument.)
+* `m = 100`: number of regressions to perform per variable with missing data during 
+    the imputation process. [To do: make this more dynamic]
+* `n = 5`: number of imputed datasets to produce.
+* `verbose = true`: whether to display messages showing progress of the function.
 
 ## Examples 
 To do
@@ -40,16 +40,22 @@ function mice(df, vars::Vector{T}; kwargs...) where T <: AbstractString
 end 
 
 function mice(df, vars::Vector{T}; 
-        binvars = nothing, contvars = nothing, noimputevars = nothing, printdropped = true, kwargs...
+        binvars = nothing, contvars = nothing, noimputevars = nothing, printdropped = true, 
+        verbose = true, kwargs...
     ) where T <: Symbol 
+    if verbose @info "Starting to classify variables" end 
     bv, cv, niv = classifyvars!(vars, binvars, contvars, noimputevars, df; printdropped)
-    return mice(df, bv, cv, niv; kwargs...)
+    return mice(df, bv, cv, niv; verbose, kwargs...)
 end 
 
-function mice(df, binvars::Vector, contvars::Vector, noimputevars::Vector; n = 5, kwargs...) 
+function mice(df, binvars::Vector, contvars::Vector, noimputevars::Vector; 
+        n = 5, verbose = true, kwargs...
+    ) 
+    if verbose @info "Starting to initialize imputation process" end 
     tempdf = initializetempdf(df, binvars, contvars, noimputevars)
-    imputeddfs = [ impute!(tempdf, binvars, contvars, noimputevars, df; kwargs...) 
-        for _ ∈ 1:n ]
+    imputeddfs = [ impute!(tempdf, binvars, contvars, noimputevars, df; 
+        verbose, verbosei = i, kwargs...) 
+        for i ∈ 1:n ]
     return ImputedDataFrame(df, n, imputeddfs)
 end 
 
@@ -82,7 +88,7 @@ function initializebinarytempvalues(df::DataFrame, var::Symbol)
     return initializebinarytempvalues(variable, nonmissings)
 end 
 
-function initializebinarytempvalues(variable::Vector{T}, nonmissings::Vector) where T <: MissBool
+function initializebinarytempvalues(variable::Vector{<:Union{T, Missing}}, nonmissings::Vector) where T <: Bool
     return [ initializebinarytempvalue(variable[i], variable, nonmissings) 
         for i ∈ eachindex(variable) ]
 end 
@@ -104,40 +110,40 @@ function initializebinarytempvalue(value::Missing, variable::Vector, nonmissings
     return BinaryBoolTempImputedValues(initialvalue, true, initialvalue, initialvalue)
 end 
 
-function initializebinarytempvalue(value::Int, variable::Vector{T}, nonmissings, 
-        originalmin, originalmax
-    ) where T <: MissInt
+function initializebinarytempvalue(value::Int, variable::Vector{<:Union{T, Missing}}, 
+        nonmissings, originalmin, originalmax
+    ) where T <: Int
     return BinaryIntTempImputedValues(value, originalmin, originalmax, false, value, value)
 end 
 
-function initializebinarytempvalue(value::Missing, variable::Vector{T}, nonmissings, 
-        originalmin, originalmax
-    ) where T <: MissInt
+function initializebinarytempvalue(value::Missing, variable::Vector{<:Union{T, Missing}}, 
+        nonmissings, originalmin, originalmax
+    ) where T <: Int
     initialvalue = variable[sample(nonmissings)]
     return BinaryIntTempImputedValues(initialvalue, originalmin, originalmax, true, 
         initialvalue, initialvalue)
 end 
 
-function initializebinarytempvalue(value::AbstractString, variable::Vector{T}, 
+function initializebinarytempvalue(value::AbstractString, variable::Vector{<:Union{T, Missing}}, 
         nonmissings, originalmin, originalmax
-    ) where T <: MissString
+    ) where T <: AbstractString
     originalmiss = false
     return initializebinarytempvalue(value, variable, nonmissings, originalmin, 
         originalmax, originalmiss, value) 
 end 
 
-function initializebinarytempvalue(value::Missing, variable::Vector{T}, nonmissings, 
-        originalmin, originalmax
-    ) where T <: MissString
+function initializebinarytempvalue(value::Missing, variable::Vector{<:Union{T, Missing}}, 
+        nonmissings, originalmin, originalmax
+    ) where T <: AbstractString
     originalmiss = true
     initialvalue = variable[sample(nonmissings)]
     return initializebinarytempvalue(value, variable, nonmissings, originalmin,
         originalmax, originalmiss, initialvalue) 
 end 
 
-function initializebinarytempvalue(value, variable::Vector{T}, nonmissings, originalmin, 
-        originalmax, originalmiss, initialvalue
-    ) where T <: MissString
+function initializebinarytempvalue(value, variable::Vector{<:Union{T, Missing}}, 
+        nonmissings, originalmin, originalmax, originalmiss, initialvalue
+    ) where T <: AbstractString
     initialtruth = initialvalue == originalmax
     return BinaryStringTempImputedValues(initialvalue, originalmin, originalmax, 
         originalmiss, initialtruth, initialtruth)
@@ -171,29 +177,41 @@ function initializecontinuoustempvalues(variable::Vector, nonmissings::Vector)
         for i ∈ eachindex(variable) ]
 end 
 
-function initializecontinuoustempvalue(value::Int, variable::Vector{T}, nonmissings) where T <: MissInt
+function initializecontinuoustempvalue(value::Int, variable::Vector{<:Union{T, Missing}}, 
+        nonmissings
+    ) where T <: Int
     return ContinuousIntTempImputedValues(value, false, value)
 end 
 
-function initializecontinuoustempvalue(value::Missing, variable::Vector{T}, nonmissings) where T <: MissInt
+function initializecontinuoustempvalue(value::Missing, variable::Vector{<:Union{T, Missing}}, 
+        nonmissings
+    ) where T <: Int
     initialvalue = variable[sample(nonmissings)]
     return ContinuousIntTempImputedValues(initialvalue, true, initialvalue)
 end 
 
-function initializecontinuoustempvalue(value::Float64, variable::Vector{T}, nonmissings) where T <: MissFloat
+function initializecontinuoustempvalue(value::Float64, variable::Vector{<:Union{T, Missing}}, 
+        nonmissings
+    ) where T <: Float64
     return ContinuousFloatTempImputedValues(value, false, value)
 end 
 
-function initializecontinuoustempvalue(value::Missing, variable::Vector{T}, nonmissings) where T <: MissFloat
+function initializecontinuoustempvalue(value::Missing, variable::Vector{<:Union{T, Missing}}, 
+        nonmissings
+    ) where T <: Float64
     initialvalue = variable[sample(nonmissings)]
     return ContinuousFloatTempImputedValues(initialvalue, true, initialvalue)
 end 
 
-function initializecontinuoustempvalue(value::Number, variable::Vector{T}, nonmissings) where T <: MissNumber
+function initializecontinuoustempvalue(value::Number, variable::Vector{<:Union{T, Missing}}, 
+        nonmissings
+    ) where T <: Number
     return ContinuousAnyTempImputedValues(value, false, value)
 end 
 
-function initializecontinuoustempvalue(value::Missing, variable::Vector{T}, nonmissings) where T <: MissNumber
+function initializecontinuoustempvalue(value::Missing, variable::Vector{<:Union{T, Missing}}, 
+        nonmissings
+    ) where T <: Number
     initialvalue = variable[sample(nonmissings)]
     return ContinuousAnyTempImputedValues(initialvalue, true, initialvalue)
 end 
@@ -203,7 +221,7 @@ end
 # Identify non-missing values 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-function identifynonmissings(variable::Vector{T}) where T <: AbstractTempImputedValues
+function identifynonmissings(variable::Vector{<:AbstractTempImputedValues}) 
     return findall(x -> !x.originalmiss, variable)
 end
 
@@ -215,8 +233,9 @@ identifynonmissings(variable) = findall(x -> !ismissing(x), variable)
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 function impute!(tempdf, binvars, contvars, noimputevars, df; 
-        m = 100, initialvaluesfunc = sample, kwargs...
+        m = 100, initialvaluesfunc = sample, verbose, verbosei, kwargs...
     )
+    if verbose @info "Starting imputation set $verbosei" end 
     td = deepcopy(tempdf)
     initialvalues!(td, initialvaluesfunc, binvars, contvars, noimputevars)
     for _ ∈ 1:m imputevalues!(td, binvars, contvars; kwargs...) end 
@@ -276,7 +295,7 @@ end
 
 _makeworkingdf(variable) = variable
 
-function _makeworkingdf(variable::Vector{T}) where T <: AbstractTempImputedValues
+function _makeworkingdf(variable::Vector{<:AbstractTempImputedValues}) 
     return [ v.imputedvalue for v ∈ variable ]
 end 
 
