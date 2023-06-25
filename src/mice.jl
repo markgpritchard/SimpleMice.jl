@@ -2,7 +2,7 @@
 """
     mice(df[, vars::Vector]; <keyword arguments>) 
     mice(df, var1, vars...; <keyword arguments>) 
-    mice(df, bv::Vector, cv::Vector, niv::Vector; <keyword arguments>) 
+    mice(df, binvars::Vector, contvars::Vector, noimputevars::Vector; <keyword arguments>) 
 
 Takes a `DataFrame` and imputes missing values using multiple imputation by chained 
     equations.
@@ -10,13 +10,21 @@ Takes a `DataFrame` and imputes missing values using multiple imputation by chai
 `df` is the DataFrame with missing data. `vars` is a vector of variables to be used 
     for the multiple imputation algorithm. These can also be presented as arguments: 
     `var1, var2, var3...`. Variables can also be supplied in separate vectors, 
-    `bv` for binary variables, `cv` for continuous variables, and `niv` for variables 
-    with no missing data but which are to be used in the multiple imputation algorithm.
-    If no variables are supplied to the function, all columns in the DataFrame will 
-    be used.
+    `binvars` for binary variables, `contvars` for continuous variables, and `noimputevars` 
+    for variables with no missing data but which are to be used in the multiple 
+    imputation algorithm. If no variables are supplied to the function, all columns 
+    in the DataFrame will be used.
 
 ## Keyword arguments 
-To do 
+* Any of `binvars`, `contvars` and `noimputevars` can be supplied as keyword arguments 
+    if not supplied as positional arguments.
+* `initialvaluesfunc`: Function used to give each missing datapoint a value at the 
+    start of the imputation algorithm. Defult = `StatsBase.sample`. (Note that `sample` 
+    is used for all binary [and categorical] variables regardless of this keyword 
+    argument.)
+* `m`: number of regressions to perform per variable with missing data during the 
+    imputation process. Default = 100. [To do: make this more dynamic]
+* `n`: number of imputed datasets to produce. Default = 5.
 
 ## Examples 
 To do
@@ -38,9 +46,9 @@ function mice(df, vars::Vector{T};
     return mice(df, bv, cv, niv; kwargs...)
 end 
 
-function mice(df, bv::Vector, cv::Vector, niv::Vector; n = 5, kwargs...) 
-    tempdf = initializetempdf(df, bv, cv, niv)
-    imputeddfs = [ impute!(tempdf, bv, cv, niv, df; kwargs...) for _ ∈ 1:n ]
+function mice(df, binvars::Vector, contvars::Vector, noimputevars::Vector; n = 5, kwargs...) 
+    tempdf = initializetempdf(df, binvars, contvars, noimputevars)
+    imputeddfs = [ impute!(tempdf, binvars, contvars, noimputevars, df; kwargs...) for _ ∈ 1:n ]
     return ImputedDataFrame(df, n, imputeddfs)
 end 
 
@@ -53,7 +61,7 @@ end
 # Create a DataFrame that will hold temporary values for each variable 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-function initializetempdf(df, binvars, contvars, noimputevars; kwargs...)
+function initializetempdf(df, binvars, contvars, noimputevars)
     tempdf = DataFrame([
         [ var => initializebinarytempvalues(df, var) for var ∈ binvars ];
         [ var => initializecontinuoustempvalues(df, var) for var ∈ contvars ];
@@ -67,17 +75,17 @@ end
 # Initialize binary variables 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-function initializebinarytempvalues(df::DataFrame, var::Symbol; kwargs...)
+function initializebinarytempvalues(df::DataFrame, var::Symbol)
     variable = getproperty(df, var)
     nonmissings = identifynonmissings(variable)
     return initializebinarytempvalues(variable, nonmissings)
 end 
 
-function initializebinarytempvalues(variable::Vector{T}, nonmissings::Vector; kwargs...) where T <: MissBool
+function initializebinarytempvalues(variable::Vector{T}, nonmissings::Vector) where T <: MissBool
     return [ initializebinarytempvalue(variable[i], variable, nonmissings) for i ∈ eachindex(variable) ]
 end 
 
-function initializebinarytempvalues(variable::Vector, nonmissings::Vector; kwargs...) 
+function initializebinarytempvalues(variable::Vector, nonmissings::Vector) 
     nmv = variable[nonmissings]
     originalmin = minimum(nmv)
     originalmax = maximum(nmv)
@@ -132,13 +140,13 @@ end
 # Initialize continuous variables 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-function initializecontinuoustempvalues(df::DataFrame, var::Symbol; kwargs...)
+function initializecontinuoustempvalues(df::DataFrame, var::Symbol)
     variable = getproperty(df, var)
     nonmissings = identifynonmissings(variable)
     return initializecontinuoustempvalues(variable, nonmissings)
 end 
 
-function initializecontinuoustempvalues(variable::Vector, nonmissings::Vector; kwargs...) 
+function initializecontinuoustempvalues(variable::Vector, nonmissings::Vector) 
     return [ initializecontinuoustempvalue(variable[i], variable, nonmissings) for i ∈ eachindex(variable) ]
 end 
 
