@@ -18,9 +18,10 @@ include("extras.jl")
 export mice
 export getvalues,
     betweenimputationvar, rubinsmean, rubinssterror, rubinsvar, withinimputationvar,
+    withinimputationsterrorsquared,
     componentmeans, componentvars,
     mean, std, var,
     fit, glm, lm,
     desentinelize!
 
-end
+end # module SimpleMice
