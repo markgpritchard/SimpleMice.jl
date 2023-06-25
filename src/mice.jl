@@ -17,13 +17,19 @@ Takes a `DataFrame` and imputes missing values using multiple imputation by chai
 
 ## Keyword arguments 
 * Any of `binvars`, `contvars` and `noimputevars` can be supplied as keyword arguments 
-    if not supplied as positional arguments.
+    if not supplied as positional arguments. If not supplied, variables with no 
+    missing data classified as `noimputevars`, integers and strings with two unique 
+    non-missing values, plus all `Bool` inputs, as `binvars`, and all other numbers 
+    as `contvars`.
 * `initialvaluesfunc = StatsBase.sample`: Function used to give each missing datapoint a value at the 
     start of the imputation algorithm. (Note that `sample` is used for all binary 
     [and categorical] variables regardless of this keyword argument.)
 * `m = 100`: number of regressions to perform per variable with missing data during 
     the imputation process. [To do: make this more dynamic]
 * `n = 5`: number of imputed datasets to produce.
+* `printdropped`: whether to list members of vars that are not classified into one 
+    of binvars`, `contvars` and `noimputevars`. Default is `true` if vars is supplied 
+    and `false` otherwise.
 * `verbose = true`: whether to display messages showing progress of the function.
 
 ## Examples 
