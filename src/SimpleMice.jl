@@ -13,12 +13,14 @@ include("classifyvariables.jl")
 include("basefunctions.jl")
 include("statsfunctions.jl")
 include("glmfunctions.jl")
+include("extras.jl")
 
 export mice
 export getvalues,
     betweenimputationvar, rubinsmean, rubinssterror, rubinsvar, withinimputationvar,
     componentmeans, componentvars,
     mean, std, var,
-    fit, glm, lm
+    fit, glm, lm,
+    desentinelize!
 
 end

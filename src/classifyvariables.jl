@@ -116,9 +116,40 @@ function choosenoimputevar!(newnoimputevars, df, var)
 end 
 
 function choosecontvars(df, vars, contvars::Nothing)
-    return deepcopy(vars) # deepcopy, otherwise lose these variables when vars is subsequently filtered 
+    newcontvars = Symbol[] 
+    choosecontvars!(newcontvars, df, vars)
+    return newcontvars 
 end 
 
 function choosecontvars(df, vars, contvars::Vector{T}) where T <: Symbol
     return contvars 
 end 
+
+function choosecontvars!(newcontvars, df, vars)
+    for var ∈ vars choosecontvar!(newcontvars, df, var) end 
+end 
+
+function choosecontvar!(newcontvars, df, var)
+    varvector = getproperty(df, var)
+    choosecontvar!(newcontvars, df, var, varvector)
+end 
+
+# want a general function that captures any Union{<:Number, Missing} but not yet 
+# managed that 
+#=
+function choosecontvar!(newcontvars, df, var, varvector::Vector{MissNumber}) 
+    push!(newcontvars, var)
+end 
+=#
+
+function choosecontvar!(newcontvars, df, var, varvector::Vector{MissFloat}) 
+    _choosecontvar!(newcontvars, df, var, varvector)
+end
+
+function choosecontvar!(newcontvars, df, var, varvector::Vector{MissInt}) 
+    _choosecontvar!(newcontvars, df, var, varvector)
+end
+
+_choosecontvar!(newcontvars, df, var, varvector) = push!(newcontvars, var)
+
+choosecontvar!(newcontvars, df, var, varvector::Vector) = nothing # for any other vector
