@@ -17,7 +17,7 @@ MissString = Union{Missing, String}
 abstract type AbstractTempImputedValues end 
 
 # Imputed values can be continuous or binary 
-# (support for categorical variables will be added later)
+# (support for categorical variables is intended to be added later)
 
 abstract type ContinuousTempImputedValues <: AbstractTempImputedValues end 
 

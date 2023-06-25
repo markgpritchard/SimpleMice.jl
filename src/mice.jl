@@ -48,7 +48,8 @@ end
 
 function mice(df, binvars::Vector, contvars::Vector, noimputevars::Vector; n = 5, kwargs...) 
     tempdf = initializetempdf(df, binvars, contvars, noimputevars)
-    imputeddfs = [ impute!(tempdf, binvars, contvars, noimputevars, df; kwargs...) for _ ∈ 1:n ]
+    imputeddfs = [ impute!(tempdf, binvars, contvars, noimputevars, df; kwargs...) 
+        for _ ∈ 1:n ]
     return ImputedDataFrame(df, n, imputeddfs)
 end 
 
@@ -82,14 +83,16 @@ function initializebinarytempvalues(df::DataFrame, var::Symbol)
 end 
 
 function initializebinarytempvalues(variable::Vector{T}, nonmissings::Vector) where T <: MissBool
-    return [ initializebinarytempvalue(variable[i], variable, nonmissings) for i ∈ eachindex(variable) ]
+    return [ initializebinarytempvalue(variable[i], variable, nonmissings) 
+        for i ∈ eachindex(variable) ]
 end 
 
 function initializebinarytempvalues(variable::Vector, nonmissings::Vector) 
     nmv = variable[nonmissings]
     originalmin = minimum(nmv)
     originalmax = maximum(nmv)
-    return [ initializebinarytempvalue(variable[i], variable, nonmissings, originalmin, originalmax) for i ∈ eachindex(variable) ]
+    return [ initializebinarytempvalue(variable[i], variable, nonmissings, originalmin, originalmax) 
+        for i ∈ eachindex(variable) ]
 end 
 
 function initializebinarytempvalue(value::Bool, variable::Vector, nonmissings)
@@ -101,38 +104,55 @@ function initializebinarytempvalue(value::Missing, variable::Vector, nonmissings
     return BinaryBoolTempImputedValues(initialvalue, true, initialvalue, initialvalue)
 end 
 
-function initializebinarytempvalue(value::Int, variable::Vector{T}, nonmissings, originalmin, originalmax) where T <: MissInt
+function initializebinarytempvalue(value::Int, variable::Vector{T}, nonmissings, 
+        originalmin, originalmax
+    ) where T <: MissInt
     return BinaryIntTempImputedValues(value, originalmin, originalmax, false, value, value)
 end 
 
-function initializebinarytempvalue(value::Missing, variable::Vector{T}, nonmissings, originalmin, originalmax) where T <: MissInt
+function initializebinarytempvalue(value::Missing, variable::Vector{T}, nonmissings, 
+        originalmin, originalmax
+    ) where T <: MissInt
     initialvalue = variable[sample(nonmissings)]
-    return BinaryIntTempImputedValues(initialvalue, originalmin, originalmax, true, initialvalue, initialvalue)
+    return BinaryIntTempImputedValues(initialvalue, originalmin, originalmax, true, 
+        initialvalue, initialvalue)
 end 
 
-function initializebinarytempvalue(value::AbstractString, variable::Vector{T}, nonmissings, originalmin, originalmax) where T <: MissString
+function initializebinarytempvalue(value::AbstractString, variable::Vector{T}, 
+        nonmissings, originalmin, originalmax
+    ) where T <: MissString
     originalmiss = false
-    return initializebinarytempvalue(value, variable, nonmissings, originalmin, originalmax, originalmiss, value) 
+    return initializebinarytempvalue(value, variable, nonmissings, originalmin, 
+        originalmax, originalmiss, value) 
 end 
 
-function initializebinarytempvalue(value::Missing, variable::Vector{T}, nonmissings, originalmin, originalmax) where T <: MissString
+function initializebinarytempvalue(value::Missing, variable::Vector{T}, nonmissings, 
+        originalmin, originalmax
+    ) where T <: MissString
     originalmiss = true
     initialvalue = variable[sample(nonmissings)]
-    return initializebinarytempvalue(value, variable, nonmissings, originalmin, originalmax, originalmiss, initialvalue) 
+    return initializebinarytempvalue(value, variable, nonmissings, originalmin,
+        originalmax, originalmiss, initialvalue) 
 end 
 
-function initializebinarytempvalue(value, variable::Vector{T}, nonmissings, originalmin, originalmax, originalmiss, initialvalue) where T <: MissString
+function initializebinarytempvalue(value, variable::Vector{T}, nonmissings, originalmin, 
+        originalmax, originalmiss, initialvalue
+    ) where T <: MissString
     initialtruth = initialvalue == originalmax
-    return BinaryStringTempImputedValues(initialvalue, originalmin, originalmax, originalmiss, initialtruth, initialtruth)
+    return BinaryStringTempImputedValues(initialvalue, originalmin, originalmax, 
+        originalmiss, initialtruth, initialtruth)
 end 
 
 function initializebinarytempvalue(value, variable::Vector, nonmissings, originalmin, originalmax)
     return BinaryAnyTempImputedValues(value, originalmin, originalmax, false, value, value)
 end 
 
-function initializebinarytempvalue(value::Missing, variable::Vector, nonmissings, originalmin, originalmax)
+function initializebinarytempvalue(value::Missing, variable::Vector, nonmissings, 
+        originalmin, originalmax
+    )
     initialvalue = variable[sample(nonmissings)]
-    return BinaryAnyTempImputedValues(initialvalue, originalmin, originalmax, true, initialvalue, initialvalue)
+    return BinaryAnyTempImputedValues(initialvalue, originalmin, originalmax, true, 
+        initialvalue, initialvalue)
 end 
 
 
@@ -147,7 +167,8 @@ function initializecontinuoustempvalues(df::DataFrame, var::Symbol)
 end 
 
 function initializecontinuoustempvalues(variable::Vector, nonmissings::Vector) 
-    return [ initializecontinuoustempvalue(variable[i], variable, nonmissings) for i ∈ eachindex(variable) ]
+    return [ initializecontinuoustempvalue(variable[i], variable, nonmissings) 
+        for i ∈ eachindex(variable) ]
 end 
 
 function initializecontinuoustempvalue(value::Int, variable::Vector{T}, nonmissings) where T <: MissInt
@@ -193,7 +214,9 @@ identifynonmissings(variable) = findall(x -> !ismissing(x), variable)
 # Impute values 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-function impute!(tempdf, binvars, contvars, noimputevars, df; m = 100, initialvaluesfunc = sample, kwargs...)
+function impute!(tempdf, binvars, contvars, noimputevars, df; 
+        m = 100, initialvaluesfunc = sample, kwargs...
+    )
     td = deepcopy(tempdf)
     initialvalues!(td, initialvaluesfunc, binvars, contvars, noimputevars)
     for _ ∈ 1:m imputevalues!(td, binvars, contvars; kwargs...) end 

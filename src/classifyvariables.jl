@@ -30,8 +30,8 @@ function classifyvars!(vars, binvars, contvars, noimputevars, df; printdropped)
         if length(vars) > 0
             @warn """
             The following variables are not not included in imputation: $vars.
-            If you wish these to be included, check the use of keywords binvars, 
-            contvars and noimputevars.
+                If you wish these to be included, check the use of keywords binvars, 
+                contvars and noimputevars.
             """
         end 
     end 
@@ -71,8 +71,7 @@ function choosebinvar!(newbinvars, df, var)
 end 
 
 function choosebinvar!(newbinvars, df, var, varvector::Vector{MissBool}) 
-    # if the input variable is a Bool then this will always be treated as a binary 
-    # variable 
+    # if the input variable is a Bool then this will always be treated as a binary variable 
     push!(newbinvars, var)
 end 
 

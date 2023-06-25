@@ -17,8 +17,8 @@ include("extras.jl")
 
 export mice
 export getvalues,
-    betweenimputationvar, rubinsmean, rubinssterror, rubinsvar, withinimputationvar,
-    withinimputationsterrorsquared,
+    betweenimputationvar, rubinsmean, rubinssterror, rubinsvar, 
+    withinimputationsterrorsquared, withinimputationvar,
     componentmeans, componentvars,
     mean, std, var,
     fit, glm, lm,
