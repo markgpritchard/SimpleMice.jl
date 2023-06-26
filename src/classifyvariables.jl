@@ -4,9 +4,19 @@
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 symbollist(list::Vector{Symbol}) = list 
-symbollist(list::Vector{String}) = [ Symbol(v) for v ∈ list ]
+symbollist(list::Vector{<:AbstractString}) = [ Symbol(v) for v ∈ list ]
 symbollist(list::Nothing) = nothing
 
+function symbollist(list::Vector{T}) where T
+    # if the vector is empty and comes up as type Any[] then can simply return 
+    # an empty vector Symbol 
+    @assert length(list) == 0 """
+    symbollist can accept a vector of symbols, <:AbstractString, or any empty 
+    vector. It cannot process a vector of type $T and length $(length(list))
+    as a variable list.
+    """
+    return Symbol[]
+end 
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # Divide lists of variables according to type 
