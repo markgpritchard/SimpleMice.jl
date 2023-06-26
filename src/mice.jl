@@ -40,15 +40,15 @@ function mice(df; kwargs...)
     return mice(df, vars; printdropped = false, kwargs...)
 end 
 
-function mice(df, vars::Vector{T}; kwargs...) where T <: AbstractString 
+function mice(df, vars::Vector{<:AbstractString}; kwargs...)  
     symbolvars = symbollist(vars) # convert strings to symbols
     return mice(df, symbolvars; kwargs...)
 end 
 
-function mice(df, vars::Vector{T}; 
+function mice(df, vars::Vector{Symbol}; 
         binvars = nothing, contvars = nothing, noimputevars = nothing, printdropped = true, 
         verbose = true, kwargs...
-    ) where T <: Symbol 
+    ) 
     if verbose @info "Starting to classify variables" end 
     bv, cv, niv = classifyvars!(vars, binvars, contvars, noimputevars, df; printdropped)
     return mice(df, bv, cv, niv; verbose, kwargs...)
@@ -89,17 +89,7 @@ end
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 function initializebinarytempvalues(df::DataFrame, var::Symbol)
-    variable = getproperty(df, var)
-    nonmissings = identifynonmissings(variable)
-    return initializebinarytempvalues(variable, nonmissings)
-end 
-
-function initializebinarytempvalues(variable::Vector{<:Union{T, Missing}}, nonmissings::Vector) where T <: Bool
-    return [ initializebinarytempvalue(variable[i], variable, nonmissings) 
-        for i ∈ eachindex(variable) ]
-end 
-
-function initializebinarytempvalues(variable::Vector, nonmissings::Vector) 
+    variable, nonmissings = _initializevalues(df, var)
     nmv = variable[nonmissings]
     originalmin = minimum(nmv)
     originalmax = maximum(nmv)
@@ -107,119 +97,66 @@ function initializebinarytempvalues(variable::Vector, nonmissings::Vector)
         for i ∈ eachindex(variable) ]
 end 
 
-function initializebinarytempvalue(value::Bool, variable::Vector, nonmissings)
-    return BinaryBoolTempImputedValues(value, false, value, value)
-end 
-
-function initializebinarytempvalue(value::Missing, variable::Vector, nonmissings)
-    initialvalue = variable[sample(nonmissings)]
-    return BinaryBoolTempImputedValues(initialvalue, true, initialvalue, initialvalue)
-end 
-
-function initializebinarytempvalue(value::Int, variable::Vector{<:Union{T, Missing}}, 
-        nonmissings, originalmin, originalmax
-    ) where T <: Int
-    return BinaryIntTempImputedValues(value, originalmin, originalmax, false, value, value)
+function initializebinarytempvalue(value::T, variable::Vector{<:Union{T, Missing}}, 
+        nonmissings, originalmin::T, originalmax::T
+    ) where T <: Number
+    return BinaryTempImputedValues{T}(value, originalmin, originalmax, false, value, value)
 end 
 
 function initializebinarytempvalue(value::Missing, variable::Vector{<:Union{T, Missing}}, 
-        nonmissings, originalmin, originalmax
-    ) where T <: Int
+        nonmissings, originalmin::T, originalmax::T
+    ) where T <: Number
     initialvalue = variable[sample(nonmissings)]
-    return BinaryIntTempImputedValues(initialvalue, originalmin, originalmax, true, 
-        initialvalue, initialvalue)
+    return BinaryTempImputedValues{T}(initialvalue, originalmin, originalmax, true, initialvalue, initialvalue)
 end 
 
-function initializebinarytempvalue(value::AbstractString, variable::Vector{<:Union{T, Missing}}, 
-        nonmissings, originalmin, originalmax
+function initializebinarytempvalue(value::T, variable::Vector{<:Union{T, Missing}}, 
+        nonmissings, originalmin::T, originalmax::T
     ) where T <: AbstractString
-    originalmiss = false
-    return initializebinarytempvalue(value, variable, nonmissings, originalmin, 
-        originalmax, originalmiss, value) 
+    return initializebinarytempvaluestring(value, originalmin, originalmax, false)
 end 
 
 function initializebinarytempvalue(value::Missing, variable::Vector{<:Union{T, Missing}}, 
-        nonmissings, originalmin, originalmax
+        nonmissings, originalmin::T, originalmax::T
     ) where T <: AbstractString
-    originalmiss = true
     initialvalue = variable[sample(nonmissings)]
-    return initializebinarytempvalue(value, variable, nonmissings, originalmin,
-        originalmax, originalmiss, initialvalue) 
+    return initializebinarytempvaluestring(initialvalue, originalmin, originalmax, true)
 end 
 
-function initializebinarytempvalue(value, variable::Vector{<:Union{T, Missing}}, 
-        nonmissings, originalmin, originalmax, originalmiss, initialvalue
-    ) where T <: AbstractString
-    initialtruth = initialvalue == originalmax
-    return BinaryStringTempImputedValues(initialvalue, originalmin, originalmax, 
-        originalmiss, initialtruth, initialtruth)
-end 
+function initializebinarytempvaluestring(value::T, originalmin::T, originalmax::T, 
+        originalmiss::Bool
+    ) where T
+    initialtruth = value == originalmax
+    return BinaryTempImputedValues{T}(value, originalmin, originalmax, originalmiss, initialtruth, initialtruth)
+end
 
-function initializebinarytempvalue(value, variable::Vector, nonmissings, originalmin, originalmax)
-    return BinaryAnyTempImputedValues(value, originalmin, originalmax, false, value, value)
+function _initializevalues(df, var)
+    variable = getproperty(df, var)
+    nonmissings = identifynonmissings(variable)
+    return ( variable, nonmissings )
 end 
-
-function initializebinarytempvalue(value::Missing, variable::Vector, nonmissings, 
-        originalmin, originalmax
-    )
-    initialvalue = variable[sample(nonmissings)]
-    return BinaryAnyTempImputedValues(initialvalue, originalmin, originalmax, true, 
-        initialvalue, initialvalue)
-end 
-
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # Initialize continuous variables 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 function initializecontinuoustempvalues(df::DataFrame, var::Symbol)
-    variable = getproperty(df, var)
-    nonmissings = identifynonmissings(variable)
-    return initializecontinuoustempvalues(variable, nonmissings)
-end 
-
-function initializecontinuoustempvalues(variable::Vector, nonmissings::Vector) 
+    variable, nonmissings = _initializevalues(df, var)
     return [ initializecontinuoustempvalue(variable[i], variable, nonmissings) 
         for i ∈ eachindex(variable) ]
 end 
 
-function initializecontinuoustempvalue(value::Int, variable::Vector{<:Union{T, Missing}}, 
+function initializecontinuoustempvalue(value::T, variable::Vector{<:Union{T, Missing}}, 
         nonmissings
-    ) where T <: Int
-    return ContinuousIntTempImputedValues(value, false, value)
+    ) where T
+    return ContinuousTempImputedValues{T}(value, false, value)
 end 
 
 function initializecontinuoustempvalue(value::Missing, variable::Vector{<:Union{T, Missing}}, 
         nonmissings
-    ) where T <: Int
+    ) where T 
     initialvalue = variable[sample(nonmissings)]
-    return ContinuousIntTempImputedValues(initialvalue, true, initialvalue)
-end 
-
-function initializecontinuoustempvalue(value::Float64, variable::Vector{<:Union{T, Missing}}, 
-        nonmissings
-    ) where T <: Float64
-    return ContinuousFloatTempImputedValues(value, false, value)
-end 
-
-function initializecontinuoustempvalue(value::Missing, variable::Vector{<:Union{T, Missing}}, 
-        nonmissings
-    ) where T <: Float64
-    initialvalue = variable[sample(nonmissings)]
-    return ContinuousFloatTempImputedValues(initialvalue, true, initialvalue)
-end 
-
-function initializecontinuoustempvalue(value::Number, variable::Vector{<:Union{T, Missing}}, 
-        nonmissings
-    ) where T <: Number
-    return ContinuousAnyTempImputedValues(value, false, value)
-end 
-
-function initializecontinuoustempvalue(value::Missing, variable::Vector{<:Union{T, Missing}}, 
-        nonmissings
-    ) where T <: Number
-    initialvalue = variable[sample(nonmissings)]
-    return ContinuousAnyTempImputedValues(initialvalue, true, initialvalue)
+    return ContinuousTempImputedValues{T}(initialvalue, true, initialvalue)
 end 
 
 
@@ -283,7 +220,7 @@ function initialvalue!(tempdf, initialvaluesfunc, var)
     end 
 end 
 
-function insertinitialvalue!(tempdf, i, var, initialvalue)
+function insertinitialvalue!(tempdf, i, var, initialvalue::Number)
     tempdf[i, var].imputedvalue = initialvalue 
 end 
 
@@ -354,7 +291,7 @@ end
 
 finaldfvalue(v) = v.imputedvalue 
 
-function finaldfvalue(v::BinaryStringTempImputedValues)
+function finaldfvalue(v::BinaryTempImputedValues{T}) where T <: AbstractString
     if v.originalmiss 
         if v.imputedvalue 
             return v.originalmaximum 

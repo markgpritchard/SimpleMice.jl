@@ -8,61 +8,16 @@ abstract type AbstractTempImputedValues end
 # Imputed values can be continuous or binary 
 # (support for categorical variables is intended to be added later)
 
-abstract type ContinuousTempImputedValues <: AbstractTempImputedValues end 
-
-abstract type BinaryTempImputedValues <: AbstractTempImputedValues end 
-
-# Within continuous we have variables that were orignally integers, floats and potentially others 
-
-mutable struct ContinuousIntTempImputedValues <: ContinuousTempImputedValues
-    originalvalue       :: Int 
+mutable struct ContinuousTempImputedValues{T} <: AbstractTempImputedValues 
+    originalvalue       :: T 
     originalmiss        :: Bool 
     imputedvalue        :: Float64 
 end 
 
-mutable struct ContinuousFloatTempImputedValues <: ContinuousTempImputedValues
-    originalvalue       :: Float64 
-    originalmiss        :: Bool 
-    imputedvalue        :: Float64 
-end 
-
-mutable struct ContinuousAnyTempImputedValues <: ContinuousTempImputedValues
-    originalvalue       :: Number 
-    originalmiss        :: Bool 
-    imputedvalue        :: Float64 
-end 
-
-# Within binary we have those that were originally Bool, integer, string or others
-
-mutable struct BinaryBoolTempImputedValues <: BinaryTempImputedValues 
-    originalvalue       :: Bool 
-    originalmiss        :: Bool 
-    probability         :: Float64 
-    imputedvalue        :: Bool 
-end 
-
-mutable struct BinaryIntTempImputedValues <: BinaryTempImputedValues 
-    originalvalue       :: Int 
-    originalminimum     :: Int 
-    originalmaximum     :: Int 
-    originalmiss        :: Bool 
-    probability         :: Float64 
-    imputedvalue        :: Bool  
-end 
-
-mutable struct BinaryStringTempImputedValues <: BinaryTempImputedValues 
-    originalvalue       :: AbstractString 
-    originalminimum     :: AbstractString 
-    originalmaximum     :: AbstractString 
-    originalmiss        :: Bool 
-    probability         :: Float64 
-    imputedvalue        :: Bool  
-end 
-
-mutable struct BinaryAnyTempImputedValues <: BinaryTempImputedValues 
-    originalvalue       :: Any 
-    originalminimum     :: Any 
-    originalmaximum     :: Any 
+mutable struct BinaryTempImputedValues{T} <: AbstractTempImputedValues 
+    originalvalue       :: T 
+    originalminimum     :: T 
+    originalmaximum     :: T 
     originalmiss        :: Bool 
     probability         :: Float64 
     imputedvalue        :: Bool  
@@ -75,37 +30,15 @@ end
 
 abstract type AbstractImputedData end 
 
-abstract type ImputedVector <: AbstractImputedData end
-
 struct ImputedDataFrame <: AbstractImputedData
     originaldf          :: DataFrame 
     numberimputed       :: Int 
     imputeddfs          :: Vector{DataFrame}
 end 
 
-struct ImputedVectorInt <: ImputedVector
+struct ImputedVector{T} <: AbstractImputedData
     numberimputed       :: Int 
-    imputedvalues       :: Vector{Vector{Int}}
-end 
-
-struct ImputedVectorFloat64 <: ImputedVector
-    numberimputed       :: Int 
-    imputedvalues       :: Vector{Vector{Float64}}
-end 
-
-struct ImputedVectorBool <: ImputedVector
-    numberimputed       :: Int 
-    imputedvalues       :: Vector{Vector{Bool}}
-end 
-
-struct ImputedVectorString <: ImputedVector
-    numberimputed       :: Int 
-    imputedvalues       :: Vector{Vector{<:AbstractString}}
-end 
-
-struct ImputedVectorAny <: ImputedVector
-    numberimputed       :: Int 
-    imputedvalues       :: Vector{Vector}
+    imputedvalues       :: Vector{Vector{T}} 
 end 
 
 

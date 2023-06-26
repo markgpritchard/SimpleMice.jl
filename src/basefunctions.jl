@@ -13,22 +13,6 @@ function getvalues(value::ImputedDataFrame, name::Symbol)
     return returnvalues(n, imputedvalues)
 end
 
-function returnvalues(n, imputedvalues::Vector{Vector{Int}}) 
-    return ImputedVectorInt(n, imputedvalues)
-end 
-
-function returnvalues(n, imputedvalues::Vector{Vector{Float64}}) 
-    return ImputedVectorFloat64(n, imputedvalues)
-end 
-
-function returnvalues(n, imputedvalues::Vector{Vector{Bool}}) 
-    return ImputedVectorBool(n, imputedvalues)
-end 
-
-function returnvalues(n, imputedvalues::Vector{Vector{<:AbstractString}}) 
-    return ImputedVectorString(n, imputedvalues)
-end 
-
-function returnvalues(n, imputedvalues::Vector{Vector{T}}) where T <: Any 
-    return ImputedVectorAny(n, imputedvalues)
+function returnvalues(n, imputedvalues::Vector{Vector{T}}) where T
+    return ImputedVector{T}(n, imputedvalues)
 end 

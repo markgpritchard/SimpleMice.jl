@@ -57,7 +57,7 @@ function choosebinvars(df, vars, binvars::Nothing)
     return newbinvars 
 end 
 
-function choosebinvars(df, vars, binvars::Vector{<:Symbol})
+function choosebinvars(df, vars, binvars::Vector{Symbol})
     return binvars 
 end 
 
