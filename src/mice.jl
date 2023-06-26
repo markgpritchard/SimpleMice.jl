@@ -179,10 +179,9 @@ function impute!(tempdf, binvars, contvars, noimputevars, df;
         m = 100, initialvaluesfunc = sample, verbose, verbosei, kwargs...
     )
     if verbose @info "Starting imputation set $verbosei" end 
-    td = deepcopy(tempdf)
-    initialvalues!(td, initialvaluesfunc, binvars, contvars, noimputevars)
-    for _ ∈ 1:m imputevalues!(td, binvars, contvars; kwargs...) end 
-    finaldf = preparefinaldf(td, binvars, contvars, df) 
+    initialvalues!(tempdf, initialvaluesfunc, binvars, contvars, noimputevars)
+    imputedvalues = imputevalues(tempdf, binvars, contvars; m)
+    finaldf = preparefinaldf(tempdf, binvars, contvars, df) 
     return finaldf
 end 
 
@@ -250,41 +249,56 @@ function makeworkingvector(variable::Vector{ImputedVector{T}}) where T <: Abstra
     return [ v.imputedvalue == maxv for v ∈ variable ]
 end 
 
-function makeworkingmatrix(df, var)
+function makeworkingmatrix(df)
     M = ones(size(df))
     for (i, v) ∈ enumerate(Symbol.(names(df)))
-        v == var && continue
         M[:, i] = makeworkingvector(df, v)
     end
     return M
 end 
 
-function imputevalues!(td, binvars, contvars; kwargs...) 
-    for var ∈ binvars imputebinvalues!(td, var; kwargs...) end
-    for var ∈ contvars imputecontvalues!(td, var; kwargs...) end
+function imputevalues(tempdf, binvars, contvars; m)
+    M = makeworkingmatrix(tempdf)
+    binindices = findall(x -> x ∈ binvars, Symbol.(names(tempdf)))
+    contindices = findall(x -> x ∈ contvars, Symbol.(names(tempdf)))
+    for _ ∈ 1:m imputevalues!(M, binindices, contindices) end 
+    imputedvalues = deepcopy(tempdf)
+    for i ∈ binindices
+        var = Symbol.(names(imputedvalues))[i]
+        for (j, v) ∈ enumerate(getproperty(imputedvalues, var))
+            if v.originalmiss 
+                imputedvalues[j, var].probability = M[j, i]
+                imputedvalues[j, var].imputedvalue = rand() < M[j, i]
+            end # if v.originalmiss
+        end # for (j, v) ∈ enumerate(getproperty(df, var))
+    end # for i ∈ binindices
+    for i ∈ contindices 
+        var = Symbol.(names(imputedvalues))[i]
+        for (j, v) ∈ enumerate(getproperty(imputedvalues, var)) 
+            if v.originalmiss imputedvalues[j, var].imputedvalue = M[j, i] end 
+        end # for (j, v) ∈ enumerate(getproperty(df, var)) 
+    end # for i ∈ contindices 
 end 
 
-function imputebinvalues!(df, var; kwargs...) 
-    v = makeworkingvector(df, var)
-    M = makeworkingmatrix(df, var)
+function imputevalues!(M, binindices, contindices) 
+    for i ∈ axes(M, 2)
+        if i ∈ binindices imputebinvalues!(M, i) end 
+        if i ∈ contindices imputecontvalues!(M, i) end 
+    end 
+end 
+
+function imputebinvalues!(M, i) 
+    v = M[:, i]
+    M[:, i] = ones(size(M, 1))
     regr = fit(GeneralizedLinearModel, M, v, Binomial())
-    predictions = predict(regr)
-    for (i, v) ∈ enumerate(getproperty(df, var)) 
-        if v.originalmiss 
-            df[i, var].probability = predictions[i]
-            df[i, var].imputedvalue = rand() < predictions[i]
-        end 
-    end 
+    M[:, i] = predict(regr)
 end 
 
-function imputecontvalues!(df, var; kwargs...) 
-    v = makeworkingvector(df, var)
-    M = makeworkingmatrix(df, var)
+function imputecontvalues!(M, i) 
+    v = M[:, i]
+    M[:, i] = ones(size(M, 1))
     regr = fit(LinearModel, M, v)
-    predictions = predict(regr)
-    for (i, v) ∈ enumerate(getproperty(df, var)) 
-        if v.originalmiss df[i, var].imputedvalue = predictions[i] end 
-    end 
+    M[:, i] = predict(regr)
 end 
 
 function preparefinaldf(td, binvars, contvars, df) 
