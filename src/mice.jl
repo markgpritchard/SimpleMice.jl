@@ -229,17 +229,34 @@ function insertinitialvalue!(tempdf, i, var, initialvalue::AbstractString)
     tempdf[i, var].imputedvalue = initialtruth 
 end 
 
-makeworkingdf(df) = DataFrame([ var => _makeworkingdf(df, var) for var ∈ names(df) ])
-
-function _makeworkingdf(df, var)
+function makeworkingvector(df, var)
     variable = getproperty(df, var) 
-    return _makeworkingdf(variable)
+    return makeworkingvector(variable)
 end 
 
-_makeworkingdf(variable) = variable
+makeworkingvector(variable) = variable
 
-function _makeworkingdf(variable::Vector{<:AbstractTempImputedValues}) 
+function makeworkingvector(variable::Vector{<:AbstractTempImputedValues}) 
     return [ v.imputedvalue for v ∈ variable ]
+end 
+
+function makeworkingvector(variable::Vector{<:AbstractString}) 
+    maxv = maximum(variable)
+    return [ v == maxv for v ∈ variable ]
+end 
+
+function makeworkingvector(variable::Vector{ImputedVector{T}}) where T <: AbstractString
+    maxv = maximum(variable.imputedvalues)
+    return [ v.imputedvalue == maxv for v ∈ variable ]
+end 
+
+function makeworkingmatrix(df, var)
+    M = ones(size(df))
+    for (i, v) ∈ enumerate(Symbol.(names(df)))
+        v == var && continue
+        M[:, i] = makeworkingvector(df, v)
+    end
+    return M
 end 
 
 function imputevalues!(td, binvars, contvars; kwargs...) 
@@ -248,8 +265,9 @@ function imputevalues!(td, binvars, contvars; kwargs...)
 end 
 
 function imputebinvalues!(df, var; kwargs...) 
-    workingdf, fla = prepareimputevalues(df, var; kwargs...) 
-    regr = fit(GeneralizedLinearModel, fla, workingdf, Binomial())
+    v = makeworkingvector(df, var)
+    M = makeworkingmatrix(df, var)
+    regr = fit(GeneralizedLinearModel, M, v, Binomial())
     predictions = predict(regr)
     for (i, v) ∈ enumerate(getproperty(df, var)) 
         if v.originalmiss 
@@ -260,18 +278,13 @@ function imputebinvalues!(df, var; kwargs...)
 end 
 
 function imputecontvalues!(df, var; kwargs...) 
-    workingdf, fla = prepareimputevalues(df, var; kwargs...) 
-    regr = fit(LinearModel, fla, workingdf)
+    v = makeworkingvector(df, var)
+    M = makeworkingmatrix(df, var)
+    regr = fit(LinearModel, M, v)
     predictions = predict(regr)
     for (i, v) ∈ enumerate(getproperty(df, var)) 
         if v.originalmiss df[i, var].imputedvalue = predictions[i] end 
     end 
-end 
-
-function prepareimputevalues(df, var; kwargs...) 
-    workingdf = makeworkingdf(df)
-    fla = Term(var) ~ sum(Term.(Symbol.(names(df[:, Not(var)]))))
-    return ( workingdf, fla )
 end 
 
 function preparefinaldf(td, binvars, contvars, df) 
