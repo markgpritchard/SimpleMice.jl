@@ -181,8 +181,7 @@ function impute!(tempdf, binvars, contvars, noimputevars, df;
     if verbose @info "Starting imputation set $verbosei" end 
     td = deepcopy(tempdf)
     initialvalues!(td, initialvaluesfunc, binvars, contvars, noimputevars)
-    allvars = [ binvars; contvars; noimputevars ]
-    for _ ∈ 1:m imputevalues!(td, binvars, contvars, allvars; kwargs...) end 
+    for _ ∈ 1:m imputevalues!(td, binvars, contvars; kwargs...) end 
     finaldf = preparefinaldf(td, binvars, contvars, df) 
     return finaldf
 end 
@@ -230,11 +229,9 @@ function insertinitialvalue!(tempdf, i, var, initialvalue::AbstractString)
     tempdf[i, var].imputedvalue = initialtruth 
 end 
 
-function makeworkingdf(df, allvars::Vector{Symbol})
-    return DataFrame([ var => makeworkingdf(df, var) for var ∈ allvars ])
-end 
+makeworkingdf(df) = DataFrame([ var => _makeworkingdf(df, var) for var ∈ names(df) ])
 
-function makeworkingdf(df, var::Symbol)
+function _makeworkingdf(df, var)
     variable = getproperty(df, var) 
     return _makeworkingdf(variable)
 end 
@@ -245,13 +242,13 @@ function _makeworkingdf(variable::Vector{<:AbstractTempImputedValues})
     return [ v.imputedvalue for v ∈ variable ]
 end 
 
-function imputevalues!(td, binvars, contvars, allvars; kwargs...) 
-    for var ∈ binvars imputebinvalues!(td, var, allvars; kwargs...) end
-    for var ∈ contvars imputecontvalues!(td, var, allvars; kwargs...) end
+function imputevalues!(td, binvars, contvars; kwargs...) 
+    for var ∈ binvars imputebinvalues!(td, var; kwargs...) end
+    for var ∈ contvars imputecontvalues!(td, var; kwargs...) end
 end 
 
-function imputebinvalues!(df, var, allvars; kwargs...) 
-    workingdf, fla = prepareimputevalues(df, var, allvars; kwargs...) 
+function imputebinvalues!(df, var; kwargs...) 
+    workingdf, fla = prepareimputevalues(df, var; kwargs...) 
     regr = fit(GeneralizedLinearModel, fla, workingdf, Binomial())
     predictions = predict(regr)
     for (i, v) ∈ enumerate(getproperty(df, var)) 
@@ -262,8 +259,8 @@ function imputebinvalues!(df, var, allvars; kwargs...)
     end 
 end 
 
-function imputecontvalues!(df, var, allvars; kwargs...) 
-    workingdf, fla = prepareimputevalues(df, var, allvars; kwargs...) 
+function imputecontvalues!(df, var; kwargs...) 
+    workingdf, fla = prepareimputevalues(df, var; kwargs...) 
     regr = fit(LinearModel, fla, workingdf)
     predictions = predict(regr)
     for (i, v) ∈ enumerate(getproperty(df, var)) 
@@ -271,8 +268,8 @@ function imputecontvalues!(df, var, allvars; kwargs...)
     end 
 end 
 
-function prepareimputevalues(df, var, allvars; kwargs...) 
-    workingdf = makeworkingdf(df, allvars)
+function prepareimputevalues(df, var; kwargs...) 
+    workingdf = makeworkingdf(df)
     fla = Term(var) ~ sum(Term.(Symbol.(names(df[:, Not(var)]))))
     return ( workingdf, fla )
 end 
@@ -289,7 +286,18 @@ function preparefinaldf(td, binvars, contvars, df)
 end 
 
 function updatedfinaldf!(newdf, imputedvector, var) 
-    newdf[:, var] = [ finaldfvalue(v) for v ∈ imputedvector ] 
+    select!(newdf, Not(var))
+    insertcols!(newdf, var => finaldfvalues(imputedvector))
+end 
+
+function finaldfvalues(imputedvector::Vector{ContinuousTempImputedValues{T}}) where T
+    newvector::Vector{T} = [ finaldfvalue(v) for v ∈ imputedvector ] 
+    return newvector 
+end 
+
+function finaldfvalues(imputedvector::Vector{BinaryTempImputedValues{T}}) where T
+    newvector::Vector{T} = [ finaldfvalue(v) for v ∈ imputedvector ] 
+    return newvector 
 end 
 
 finaldfvalue(v::ContinuousTempImputedValues) = v.imputedvalue 

@@ -37,6 +37,7 @@ struct ImputedDataFrame <: AbstractImputedData
 end 
 
 struct ImputedVector{T} <: AbstractImputedData
+    originalvector      :: Vector{<:Union{Missing, T}}
     numberimputed       :: Int 
     imputedvalues       :: Vector{Vector{T}} 
 end 
