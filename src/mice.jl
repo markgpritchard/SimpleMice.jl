@@ -289,9 +289,9 @@ function updatedfinaldf!(newdf, imputedvector, var)
     newdf[:, var] = [ finaldfvalue(v) for v ∈ imputedvector ] 
 end 
 
-finaldfvalue(v) = v.imputedvalue 
+finaldfvalue(v::ContinuousTempImputedValues) = v.imputedvalue 
 
-function finaldfvalue(v::BinaryTempImputedValues{T}) where T <: AbstractString
+function finaldfvalue(v::BinaryTempImputedValues)
     if v.originalmiss 
         if v.imputedvalue 
             return v.originalmaximum 
