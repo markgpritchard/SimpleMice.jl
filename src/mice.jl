@@ -176,13 +176,12 @@ identifynonmissings(variable) = findall(x -> !ismissing(x), variable)
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 function impute!(tempdf, binvars, contvars, noimputevars, df; 
-        m = 100, initialvaluesfunc = sample, verbose, verbosei, kwargs...
+        initialvaluesfunc = sample, verbose, verbosei, kwargs...
     )
     if verbose @info "Starting imputation set $verbosei" end 
     initialvalues!(tempdf, initialvaluesfunc, binvars, contvars, noimputevars)
-    imputedvalues = imputevalues(tempdf, binvars, contvars; m)
-    finaldf = preparefinaldf(tempdf, binvars, contvars, df) 
-    return finaldf
+    imputedvalues = imputevalues!(tempdf, binvars, contvars, df; kwargs...)
+    return imputedvalues
 end 
 
 function initialvalues!(tempdf, initialvaluesfunc, binvars, contvars, noimputevars)
@@ -257,64 +256,55 @@ function makeworkingmatrix(df)
     return M
 end 
 
-function imputevalues(tempdf, binvars, contvars; m)
+function imputevalues!(tempdf::DataFrame, binvars::Vector, contvars::Vector, df::DataFrame; 
+        m = 100
+    )
     M = makeworkingmatrix(tempdf)
     binindices = findall(x -> x ∈ binvars, Symbol.(names(tempdf)))
     contindices = findall(x -> x ∈ contvars, Symbol.(names(tempdf)))
-    for _ ∈ 1:m imputevalues!(M, binindices, contindices) end 
-    imputedvalues = deepcopy(tempdf)
-    for i ∈ binindices
-        var = Symbol.(names(imputedvalues))[i]
-        for (j, v) ∈ enumerate(getproperty(imputedvalues, var))
-            if v.originalmiss 
-                imputedvalues[j, var].probability = M[j, i]
-                imputedvalues[j, var].imputedvalue = rand() < M[j, i]
-            end # if v.originalmiss
-        end # for (j, v) ∈ enumerate(getproperty(df, var))
-    end # for i ∈ binindices
-    for i ∈ contindices 
-        var = Symbol.(names(imputedvalues))[i]
-        for (j, v) ∈ enumerate(getproperty(imputedvalues, var)) 
-            if v.originalmiss imputedvalues[j, var].imputedvalue = M[j, i] end 
-        end # for (j, v) ∈ enumerate(getproperty(df, var)) 
-    end # for i ∈ contindices 
+    for _ ∈ 1:m imputevalues!(tempdf, M, binindices, contindices) end 
+    imputedvalues = deepcopy(df)
+    for var ∈ [ binvars; contvars ]
+        select!(imputedvalues, Not(var))
+        insertcols!(imputedvalues, var => finaldfvalues(getproperty(tempdf, var)))
+    end  
+    return imputedvalues
 end 
 
-function imputevalues!(M, binindices, contindices) 
-    for i ∈ axes(M, 2)
-        if i ∈ binindices imputebinvalues!(M, i) end 
-        if i ∈ contindices imputecontvalues!(M, i) end 
+function imputevalues!(tempdf::DataFrame, M::Matrix, binindices::Vector, contindices::Vector) 
+    for i ∈ [ binindices; contindices ]
+        if i ∈ binindices imputebinvalues!(tempdf, M, i) end 
+        if i ∈ contindices imputecontvalues!(tempdf, M, i) end 
     end 
 end 
 
-function imputebinvalues!(M, i) 
+function imputebinvalues!(tempdf, M, i) 
     v = M[:, i]
     M[:, i] = ones(size(M, 1))
     regr = fit(GeneralizedLinearModel, M, v, Binomial())
-    M[:, i] = predict(regr)
+    probabilities = predict(regr)
+    var = Symbol.(names(tempdf))[i]
+    for j ∈ axes(M, 1)
+        if getproperty(tempdf, var)[j].originalmiss
+            getproperty(tempdf, var)[j].probability = probabilities[j]
+            getproperty(tempdf, var)[j].imputedvalue = rand() < probabilities[j]
+        end 
+    end 
+    M[:, i] = makeworkingvector(tempdf, var)
 end 
 
-function imputecontvalues!(M, i) 
+function imputecontvalues!(tempdf, M, i) 
     v = M[:, i]
     M[:, i] = ones(size(M, 1))
     regr = fit(LinearModel, M, v)
-    M[:, i] = predict(regr)
-end 
-
-function preparefinaldf(td, binvars, contvars, df) 
-    newdf = deepcopy(df) 
-    for var ∈ Symbol.(names(newdf))
-        if var ∈ binvars || var ∈ contvars
-            imputedvector = getproperty(td, var) 
-            updatedfinaldf!(newdf, imputedvector, var)
+    predictions = predict(regr)
+    var = Symbol.(names(tempdf))[i]
+    for j ∈ axes(M, 1)
+        if getproperty(tempdf, var)[j].originalmiss
+            getproperty(tempdf, var)[j].imputedvalue = predictions[j]
         end 
     end 
-    return newdf
-end 
-
-function updatedfinaldf!(newdf, imputedvector, var) 
-    select!(newdf, Not(var))
-    insertcols!(newdf, var => finaldfvalues(imputedvector))
+    M[:, i] = makeworkingvector(tempdf, var)
 end 
 
 function finaldfvalues(imputedvector::Vector{ContinuousTempImputedValues{T}}) where T
