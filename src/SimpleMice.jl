@@ -1,7 +1,7 @@
 
 module SimpleMice
 
-using DataFrames, Distributions, GLM, PrettyTables, Random, StatsBase
+using DataFrames, Distributions, GLM, Random, StatsBase
 using HypothesisTests: confint, OneSampleTTest, pvalue
 import Base: eltype
 import DataAPI: describe
@@ -17,6 +17,7 @@ include("dataapifunctions.jl")
 include("statsfunctions.jl")
 include("glmfunctions.jl")
 include("extras.jl")
+include("testdataset.jl")
 
 export mice
 export describe, eltype, getvalues,
@@ -25,6 +26,7 @@ export describe, eltype, getvalues,
     componentmeans, componentstats, componentvars,
     mean, meanstats, std, summarystats, var,
     fit, glm, lm,
-    desentinelize!
+    desentinelize!,
+    mcar, mcar!#, testdataset
 
 end # module SimpleMice

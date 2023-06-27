@@ -78,7 +78,7 @@ function initializetempdf(df, binvars, contvars, noimputevars)
     tempdf = DataFrame([
         [ var => initializebinarytempvalues(df, var) for var ∈ binvars ];
         [ var => initializecontinuoustempvalues(df, var) for var ∈ contvars ];
-        [ var => getproperty(df, var) for var ∈ noimputevars ]
+        [ var => initializenoimputetempvalues(df, var) for var ∈ noimputevars ]
     ])
     return tempdf
 end 
@@ -159,6 +159,22 @@ function initializecontinuoustempvalue(value::Missing, variable::Vector{<:Union{
     return ContinuousTempImputedValues{T}(initialvalue, true, initialvalue)
 end 
 
+
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# Initialize binary variables 
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+function initializenoimputetempvalues(df::DataFrame, var::Symbol)
+    variable = getproperty(df, var)
+    return initializenoimputetempvalues(variable)
+end 
+
+function initializenoimputetempvalues(variable::Vector{Union{T, Missing}}) where T 
+    nomissvariable::Vector{T} = [ v for v ∈ variable]
+    return nomissvariable 
+end 
+
+initializenoimputetempvalues(variable) = variable
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # Identify non-missing values 
