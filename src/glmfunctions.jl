@@ -100,9 +100,26 @@ function makeresultsmatrix(regressionresults)
     return results
 end 
 
-function printfit(regressionresults)
+function makeresultsdataframe(regressionresults::ImputedRegressionResult)
     resultsmatrix = makeresultsmatrix(regressionresults)
+    regressionheadings = [ 
+        "", "Coef", "Std. Error", "t", "Pr(>|t|)", "Lower 95%", "Upper 95%" 
+    ]
+    resultsdf = DataFrame([ head => resultsmatrix[:, i] 
+        for (i, head) ∈ enumerate(regressionheadings) ])
+    return resultsdf
+end 
+
+function printfit(regressionresults::ImputedRegressionResult)
+    resultsdf = makeresultsdataframe(regressionresults)
+    printfit(regressionresults, resultsdf)
+end 
+
+function printfit(regressionresults::ImputedRegressionResult, resultsdf::DataFrame)
     println("Regression results from $(regressionresults.n) imputed datasets")
+    println("")
     println("$(regressionresults.formula)")
-    @pt :header = regressionheadings resultsmatrix
+    println("")
+    println("Coefficients:")
+    show(stdout, resultsdf)
 end 
