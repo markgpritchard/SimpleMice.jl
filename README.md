@@ -1,3 +1,2 @@
-# SimpleMice
-
-[![Build Status](https://github.com/markgpritchard/SimpleMice.jl/actions/workflows/CI.yml/badge.svg?branch=main)](https://github.com/markgpritchard/SimpleMice.jl/actions/workflows/CI.yml?query=branch%3Amain)
+# SimpleMice.jl
+A package to perform multiple imputation by chained equations in Julia
