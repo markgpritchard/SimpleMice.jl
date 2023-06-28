@@ -35,7 +35,7 @@ function testdataset()
     sexes::Vector{Union{String, Missing}} = [ rand() < .5 ? "F" : "M" for _ ∈ 1:1000 ]
     vara::Vector{Union{Bool, Missing}} = [ rand() < age * .0025 for age ∈ ages ]
     varb::Vector{Union{Int, Missing}} = [ rand() < (.1 + age * .0025) for age ∈ ages ]
-    varc::Vector{Union{Bool, Missing}} = [ rand() < .005 for _ ∈ 1:1000 ]
+    varc::Vector{Union{Bool, Missing}} = [ rand() < .01 for _ ∈ 1:1000 ]
     vardm = [ age < 15 ? age / 10 : 1.5 + ifelse(sex == "F", 0, .2) for (age, sex) ∈ zip(ages, sexes) ]
     vard::Vector{Union{Float64, Missing}} = [ rand(Normal(v, .015 * v)) for v ∈ vardm ]
     vare::Vector{Union{Float64, Missing}} = [ rand(Normal(25, 5)) * v^2 for v ∈ vard ]

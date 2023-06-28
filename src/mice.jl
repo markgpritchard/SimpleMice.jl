@@ -112,7 +112,7 @@ end
 
 function initializebinarytempvalue(value::T, properties::InitializeValues{T}, originalmiss) where T <: Number 
     return TempImputedValues{T}(value, ImputedBinary, originalmiss, properties.originalmin, 
-        properties.originalmax, value, value)
+        properties.originalmax, ImputedProbability(value), ImputedValue(value))
 end 
 
 function initializebinarytempvalue(value::T, properties::InitializeValues{T}, 
@@ -120,7 +120,7 @@ function initializebinarytempvalue(value::T, properties::InitializeValues{T},
     ) where T <: AbstractString 
     initialtruth = value == properties.originalmax
     return TempImputedValues{T}(value, ImputedBinary, originalmiss, properties.originalmin, 
-    properties.originalmax, initialtruth, initialtruth)
+        properties.originalmax, ImputedProbability(initialtruth), ImputedValue(initialtruth))
 end
 
 function initializecontinuoustempvalues(df, var)
@@ -143,7 +143,7 @@ end
 
 function initializecontinuoustempvalue(value::T, properties::InitializeValues{T}, originalmiss) where T
     return TempImputedValues{T}(value, ImputedContinuous, originalmiss, properties.originalmin, 
-        properties.originalmax, value, value)
+        properties.originalmax, ImputedProbability(value), ImputedValue(value))
 end
 
 function initializenoimputetempvalues(df, var)
@@ -158,13 +158,13 @@ end
 
 function initializenoimputetempvalue(value::T, properties::InitializeValues{T}) where T <: Number
     return TempImputedValues{T}(value, NoneImputed, false, properties.originalmin,
-        properties.originalmax, value, value)
+        properties.originalmax, ImputedProbability(value), ImputedValue(value))
 end 
 
 function initializenoimputetempvalue(value::T, properties::InitializeValues{T}) where T <: String
     initialtruth = value == properties.originalmax
     return TempImputedValues{T}(value, NoneImputed, false, properties.originalmin, 
-        properties.originalmax, initialtruth, initialtruth)
+        properties.originalmax, ImputedProbability(initialtruth), ImputedValue(initialtruth))
 end 
 
 function _initializenoimputetempvalueswarning(properties::InitializeValues{T}) where T <: String
@@ -244,11 +244,17 @@ end
 
 function __initialvalues!(vec, initialvaluesfunc) 
     nm = identifynonmissings(vec)
-    nmv = getproperty.(vec[nm], :imputedvalue)
+   # _nmv = getproperty.(vec[nm], :imputedvalue)::Vector{ImputedValue}
+    _nmv = [ getproperty(vec[i], :imputedvalue)::ImputedValue for i ∈ nm ]
+    nmv = [ getproperty(val, :v)::Float64 for val ∈ _nmv ]
+    __initialvalues!(vec, initialvaluesfunc, nmv) 
+end 
+
+function __initialvalues!(vec, initialvaluesfunc, nmv) 
     for j ∈ eachindex(vec) 
         if vec[j].originalmiss 
-            vec[j].probability = initialvaluesfunc(nmv)
-            vec[j].imputedvalue = initialvaluesfunc(nmv)
+            vec[j].probability.p = initialvaluesfunc(nmv)
+            vec[j].imputedvalue.v = initialvaluesfunc(nmv)
         end
     end
 end 
@@ -258,40 +264,55 @@ function imputevalues!(M, variables, allvars, binvars, contvars; m = 100)
 end 
 
 function _imputevalues!(M, variables, allvars, binvars, contvars)
-    for (i, v) ∈ enumerate(allvars)
-        if v ∈ binvars  imputebinvalues!(M, variables, i)  end 
-        if v ∈ contvars imputecontvalues!(M, variables, i) end 
+    for (i, var) ∈ enumerate(allvars)
+        _imputevalues!(M, variables[i], binvars, contvars, i, var)
     end 
 end 
 
-function imputebinvalues!(M, variables, i) 
+function _imputevalues!(M, variable, binvars, contvars, i, var)
+    if var ∈ binvars  
+        imputebinvalues!(M, variable, i)  
+    elseif var ∈ contvars 
+        imputecontvalues!(M, variable, i) 
+    end 
+end 
+
+function imputebinvalues!(M, variable, i::Int) 
     vec = deepcopy(M[:, i])
     M[:, i] = ones(size(M, 1))
     regr = fit(GeneralizedLinearModel, M, vec, Binomial())
     probabilities = predict(regr)
-    for j ∈ axes(M, 1)
-        if variables[i][j].originalmiss
-            variables[i][j].probability = probabilities[j]
-            variables[i][j].imputedvalue = rand() < probabilities[j]
-        end 
-    end 
-    M[:, i] = currentvalue.(variables[i])
+    imputebinvalues!(M, variable, probabilities) 
+    M[:, i] = currentvalue.(variable)
 end 
 
-function imputecontvalues!(M, variables, i) 
+function imputebinvalues!(M, variable, probabilities::Vector{Float64}) 
+    for j ∈ axes(M, 1)
+        if variable[j].originalmiss
+            variable[j].probability.p = probabilities[j]
+            variable[j].imputedvalue.v = rand() < probabilities[j]
+        end 
+    end 
+end 
+
+function imputecontvalues!(M, variable, i::Int) 
     vec = deepcopy(M[:, i])
     M[:, i] = ones(size(M, 1))
     regr = fit(LinearModel, M, vec)
     predictions = predict(regr)
-    for j ∈ axes(M, 1)
-        if variables[i][j].originalmiss
-            variables[i][j].imputedvalue = predictions[j]
-        end 
-    end 
-    M[:, i] = currentvalue.(variables[i])
+    imputecontvalues!(M, variable, predictions) 
+    M[:, i] = currentvalue.(variable)
 end 
 
-currentvalue(a) = a.imputedvalue
+function imputecontvalues!(M, variable, predictions::Vector{Float64}) 
+    for j ∈ axes(M, 1)
+        if variable[j].originalmiss
+            variable[j].imputedvalue.v = predictions[j]
+        end 
+    end 
+end 
+
+currentvalue(a) = a.imputedvalue.v
 
 function currentmatrix(variables)
     M = zeros(length(variables[1]), length(variables))
@@ -323,11 +344,11 @@ function imputedfvector(vector, val::TempImputedValues{T}) where T
 end 
 
 function imputedvalue(v::TempImputedValues{T}) where T <: Number 
-    return v.imputedvalue 
+    return v.imputedvalue.v 
 end 
 
 function imputedvalue(v::TempImputedValues{T}) where T <: AbstractString 
-    if v.imputedvalue == 1 return v.originalmaximum 
-    else                   return v.originalminimum
+    if v.imputedvalue.v == 1 return v.originalmaximum 
+    else                     return v.originalminimum
     end
 end 

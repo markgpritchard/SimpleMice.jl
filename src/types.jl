@@ -5,14 +5,22 @@
 
 @enum ImputedValueTypes ImputedBinary ImputedContinuous NoneImputed
 
-mutable struct TempImputedValues{T}
+mutable struct ImputedProbability 
+    p                   :: Float64 
+end 
+
+mutable struct ImputedValue 
+    v                   :: Float64 
+end 
+
+struct TempImputedValues{T}
     originalvalue       :: T 
     valuetype           :: ImputedValueTypes 
     originalmiss        :: Bool 
     originalminimum     :: T 
     originalmaximum     :: T 
-    probability         :: Float64 
-    imputedvalue        :: Float64 
+    probability         :: ImputedProbability 
+    imputedvalue        :: ImputedValue 
 end 
 
 struct InitializeValues{T} 
