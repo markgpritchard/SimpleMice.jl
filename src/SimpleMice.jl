@@ -27,6 +27,6 @@ export describe, eltype, getvalues,
     mean, meanstats, std, summarystats, var,
     fit, glm, lm,
     desentinelize!,
-    mcar, mcar!#, testdataset
+    mcar, mcar!
 
 end # module SimpleMice
