@@ -30,7 +30,7 @@ Only binary and continuous variables are currently supported.
     the imputation process. [To do: make this more dynamic]
 * `n = 5`: number of imputed datasets to produce.
 * `printdropped`: whether to list members of vars that are not classified into one 
-    of binvars`, `contvars` and `noimputevars`. Default is `true` if vars is supplied 
+    of `binvars`, `contvars` and `noimputevars`. Default is `true` if vars is supplied 
     and `false` otherwise.
 * `verbose = true`: whether to display messages showing progress of the function.
 """
@@ -64,12 +64,11 @@ end
 
 function _mice(df, allvars, binvars, contvars, noimputevars; n = 5, verbose = true, kwargs...) 
     if verbose @info "Starting to initialize imputation process" end 
-    M = initializematrix(df, allvars, binvars, contvars, noimputevars)
-    imputeddfs = [ impute!(M, allvars, binvars, contvars, noimputevars, df; 
+    variables = initializevariables(df, allvars, binvars, contvars, noimputevars)
+    imputeddfs = [ impute!(variables, allvars, binvars, contvars, noimputevars, df; 
         verbose, verbosei = i, kwargs...) 
         for i ∈ 1:n ]
     return ImputedDataFrame(df, n, imputeddfs)
-    return M
 end 
 
 
@@ -77,20 +76,21 @@ end
 # Initialize variables
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-function initializematrix(df, allvars, binvars, contvars, noimputevars)
-    numbervariables = length(allvars)
-    M = Matrix{TempImputedValues}(undef, size(df, 1), numbervariables)
-    initializematrix!(M, df, allvars, binvars, contvars, noimputevars)
-    return M
+function initializevariables(df, allvars::Vector{Symbol}, binvars, contvars, noimputevars)
+    variables = Tuple([ initializevariables(df, var, binvars, contvars, noimputevars) 
+        for var ∈ allvars ])
+    return variables
 end 
 
-function initializematrix!(M, df, allvars, binvars, contvars, noimputevars)
-    for (i, v) ∈ enumerate(allvars)
-        if v ∈ binvars      M[:, i] = initializebinarytempvalues(df, v)     end 
-        if v ∈ contvars     M[:, i] = initializecontinuoustempvalues(df, v) end 
-        if v ∈ noimputevars M[:, i] = initializenoimputetempvalues(df, v)   end 
-    end 
-end 
+function initializevariables(df, var::Symbol, binvars, contvars, noimputevars)
+    if var ∈ binvars      
+        return initializebinarytempvalues(df, var) 
+    elseif var ∈ contvars
+        return initializecontinuoustempvalues(df, var)
+    else
+        return initializenoimputetempvalues(df, var)
+    end
+end
 
 function initializebinarytempvalues(df, var)
     properties = initializevalues(df, var)
@@ -184,7 +184,6 @@ function initializevalues(df, var)
 end 
 
 function initializevalues(df, var, values::Vector{<:Union{Missing, T}}) where T
-    values = getproperty(df, var)
     nonmissings = identifynonmissings(values)
     nmv = values[nonmissings]
     originalmin = minimum(nmv)
@@ -203,25 +202,25 @@ identifynonmissings(variable) = findall(x -> !ismissing(x), variable)
 # Impute values 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-function impute!(M, allvars, binvars, contvars, noimputevars, df; 
+function impute!(variables, allvars, binvars, contvars, noimputevars, df; 
         initialvaluesfunc = sample, verbose, verbosei, kwargs...
     )
     if verbose @info "Starting imputation set $verbosei" end 
-    initialvalues!(M, initialvaluesfunc)
-    currentM, vec = currentmatrixandvector(M, 1)
-    imputevalues!(currentM, vec, M, allvars, binvars, contvars; kwargs...)
-    imputeddf = imputedf(df, M, allvars, noimputevars)
+    initialvalues!(variables, initialvaluesfunc)
+    M = currentmatrix(variables)
+    imputevalues!(M, variables, allvars, binvars, contvars; kwargs...)
+    imputeddf = makeoutputdf(df, variables, allvars, noimputevars)
     return imputeddf
 end 
 
-function initialvalues!(M, initialvaluesfunc)
-    for i ∈ axes(M, 2) 
-        M[1, i].valuetype == NoneImputed && continue
-        _initialvalues!(M[:, i], initialvaluesfunc) 
+function initialvalues!(variables, initialvaluesfunc)
+    for i ∈ eachindex(variables)
+        variables[i][1] == NoneImputed && continue
+        _initialvalues!(variables[i], initialvaluesfunc) 
     end 
 end 
 
-_initialvalues!(v, initialvaluesfunc::Sample) = __initialvalues!(v, initialvaluesfunc)
+_initialvalues!(vec, initialvaluesfunc::Sample) = __initialvalues!(vec, initialvaluesfunc)
 
 # Counter - user receives exactly one notification about sending other functions 
 # to initialvalues! with binary variables 
@@ -229,9 +228,9 @@ let initialbinvaluestate = 0
     global initialbinvaluecounter() = (initialbinvaluestate += 1)
 end
 
-function _initialvalues!(v, initialvaluesfunc)
-    if v[i].valuetype == ImputedContinuous 
-        __initialvalues!(v, initialvaluesfunc)
+function _initialvalues!(vec, initialvaluesfunc)
+    if vec[1].valuetype == ImputedContinuous 
+        __initialvalues!(vec, initialvaluesfunc)
     else 
         if initialbinvaluecounter() == 1  
             @info """
@@ -239,78 +238,77 @@ function _initialvalues!(v, initialvaluesfunc)
                 of initialvaluesfunc argument
             """ 
         end 
-        __initialvalues!(v, sample)
+        __initialvalues!(vec, sample)
     end 
 end 
 
-function __initialvalues!(v, initialvaluesfunc) 
-    nm = identifynonmissings(v)
-    nmv = getproperty.(v[nm], :imputedvalue)
-    for j ∈ eachindex(v) 
-        if v[j].originalmiss 
-            v[j].probability = initialvaluesfunc(nmv)
-            v[j].imputedvalue = initialvaluesfunc(nmv)
+function __initialvalues!(vec, initialvaluesfunc) 
+    nm = identifynonmissings(vec)
+    nmv = getproperty.(vec[nm], :imputedvalue)
+    for j ∈ eachindex(vec) 
+        if vec[j].originalmiss 
+            vec[j].probability = initialvaluesfunc(nmv)
+            vec[j].imputedvalue = initialvaluesfunc(nmv)
         end
     end
 end 
 
-function imputevalues!(currentM, vec, M, allvars, binvars, contvars; m = 100)
-    for _ ∈ 1:m _imputevalues!(currentM, vec, M, allvars, binvars, contvars) end 
+function imputevalues!(M, variables, allvars, binvars, contvars; m = 100)
+    for _ ∈ 1:m _imputevalues!(M, variables, allvars, binvars, contvars) end 
 end 
 
-function _imputevalues!(currentM, vec, M, allvars, binvars, contvars)
+function _imputevalues!(M, variables, allvars, binvars, contvars)
     for (i, v) ∈ enumerate(allvars)
-        if v ∈ binvars  imputebinvalues!(currentM, vec, M, i)  end 
-        if v ∈ contvars imputecontvalues!(currentM, vec, M, i) end 
+        if v ∈ binvars  imputebinvalues!(M, variables, i)  end 
+        if v ∈ contvars imputecontvalues!(M, variables, i) end 
     end 
 end 
 
-function imputebinvalues!(currentM, vec, M, i) 
-    for j ∈ eachindex(vec) vec[j] = currentM[j, i] end 
-    currentM[:, i] = ones(size(currentM, 1))
-    regr = fit(GeneralizedLinearModel, currentM, vec, Binomial())
+function imputebinvalues!(M, variables, i) 
+    vec = deepcopy(M[:, i])
+    M[:, i] = ones(size(M, 1))
+    regr = fit(GeneralizedLinearModel, M, vec, Binomial())
     probabilities = predict(regr)
     for j ∈ axes(M, 1)
-        if M[j, i].originalmiss
-            M[j, i].probability = probabilities[j]
-            M[j, i].imputedvalue = rand() < probabilities[j]
+        if variables[i][j].originalmiss
+            variables[i][j].probability = probabilities[j]
+            variables[i][j].imputedvalue = rand() < probabilities[j]
         end 
     end 
-    currentM[:, i] = currentvalue.(M[:, i])
+    M[:, i] = currentvalue.(variables[i])
 end 
 
-function imputecontvalues!(currentM, v, M, i) 
-    for j ∈ eachindex(v) v[1] = currentM[j, i] end 
-    currentM[:, i] = ones(size(currentM, 1))
-    regr = fit(LinearModel, currentM, v)
+function imputecontvalues!(M, variables, i) 
+    vec = deepcopy(M[:, i])
+    M[:, i] = ones(size(M, 1))
+    regr = fit(LinearModel, M, vec)
     predictions = predict(regr)
     for j ∈ axes(M, 1)
-        if M[j, i].originalmiss
-            M[j, i].imputedvalue = predictions[j]
+        if variables[i][j].originalmiss
+            variables[i][j].imputedvalue = predictions[j]
         end 
     end 
-    currentM[:, i] = currentvalue.(M[:, i])
+    M[:, i] = currentvalue.(variables[i])
 end 
 
 currentvalue(a) = a.imputedvalue
 
-function currentmatrixandvector(M, i)
-    currentM = currentvalue.(M)
-    v = currentM[:, i]
-    currentM[:, i] = ones(size(currentM, 1))
-    return ( currentM, v ) 
+function currentmatrix(variables)
+    M = zeros(length(variables[1]), length(variables))
+    for (i, vals) ∈ enumerate(variables) M[:, i] = currentvalue.(vals) end
+    return M
 end 
 
-function imputedf(df, M, allvars, noimputevars)
+function makeoutputdf(df, variables, allvars, noimputevars)
     newdf = deepcopy(df)
-    imputedf!(newdf, M, allvars, noimputevars)
+    makeoutputdf!(newdf, variables, allvars, noimputevars)
     return newdf
 end 
 
-function imputedf!(newdf, M, allvars, noimputevars)
+function makeoutputdf!(newdf, variables, allvars, noimputevars)
     for (i, var) ∈ enumerate(allvars) 
         var ∈ noimputevars && continue
-        imputedfvector!(newdf, M[:, i], var) 
+        imputedfvector!(newdf, variables[i], var) 
     end
 end 
 
