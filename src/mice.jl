@@ -161,13 +161,13 @@ function initializenoimputetempvalue(value::T, properties::InitializeValues{T}) 
         properties.originalmax, ImputedProbability(value), ImputedValue(value))
 end 
 
-function initializenoimputetempvalue(value::T, properties::InitializeValues{T}) where T <: String
+function initializenoimputetempvalue(value::T, properties::InitializeValues{T}) where T <: AbstractString
     initialtruth = value == properties.originalmax
     return TempImputedValues{T}(value, NoneImputed, false, properties.originalmin, 
         properties.originalmax, ImputedProbability(initialtruth), ImputedValue(initialtruth))
 end 
 
-function _initializenoimputetempvalueswarning(properties::InitializeValues{T}) where T <: String
+function _initializenoimputetempvalueswarning(properties::InitializeValues{T}) where T <: AbstractString
     if length(unique(properties.nmv)) > 2 
         @warn """
         Categorical variables not currently supported, even for non-imputed values. 
