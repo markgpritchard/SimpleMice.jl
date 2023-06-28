@@ -5,6 +5,10 @@
 
 Apply the model to each imputed dataset, then produce summary statistics across all
     imputed results. 
+
+Note that when applied to an `ImputedDataFrame` this function assumes the parameters 
+    can be combined as a mean according to Rubin's rules. You should check that 
+    this is appropriate for the type of regression being performed.
 """
 function fit(model::Type{T}, formula::FormulaTerm, idf::ImputedDataFrame, args...; 
         kwargs...
@@ -31,6 +35,10 @@ end
 
 Fit a generalized linear model to data. Alias for 
     `fit(GeneralizedLinearModel, formula, idf, distr, link; <keyword arguments>)`.
+
+Note that when applied to an `ImputedDataFrame` this function assumes the parameters 
+    can be combined as a mean according to Rubin's rules. You should check that 
+    this is appropriate for the type of regression being performed.
 """
 function glm(formula::FormulaTerm, idf::ImputedDataFrame, distr::UnivariateDistribution, 
         link::Link = canonicallink(distr); kwargs...
