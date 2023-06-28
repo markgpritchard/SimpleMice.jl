@@ -57,7 +57,7 @@ initialclassifyvars!(vars, v::Nothing) = nothing
 initialclassifyvars!(vars, v::Vector) = filter!(x -> x ∉ v, vars)
 
 # version of the above function that only needs to run if the `vector` was previously 
-# nothing. If variables already in a vector then on need to re-run initialclassifyvars
+# nothing. If variables already in a vector then no need to re-run initialclassifyvars
 initialclassifyvars!(vars, v, oldv::Nothing) = initialclassifyvars!(vars, v)
 initialclassifyvars!(vars, v, oldv::Vector) = nothing
 

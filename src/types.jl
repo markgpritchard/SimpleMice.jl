@@ -3,26 +3,25 @@
 # Types for temporary dataset while imputing values
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-abstract type AbstractTempImputedValues end 
+@enum ImputedValueTypes ImputedBinary ImputedContinuous NoneImputed
 
-# Imputed values can be continuous or binary 
-# (support for categorical variables is intended to be added later)
-
-mutable struct ContinuousTempImputedValues{T} <: AbstractTempImputedValues 
+mutable struct TempImputedValues{T}
     originalvalue       :: T 
+    valuetype           :: ImputedValueTypes 
     originalmiss        :: Bool 
+    originalminimum     :: T 
+    originalmaximum     :: T 
+    probability         :: Float64 
     imputedvalue        :: Float64 
 end 
 
-mutable struct BinaryTempImputedValues{T} <: AbstractTempImputedValues 
-    originalvalue       :: T 
-    originalminimum     :: T 
-    originalmaximum     :: T 
-    originalmiss        :: Bool 
-    probability         :: Float64 
-    imputedvalue        :: Bool  
+struct InitializeValues{T} 
+    values              :: Vector{<:Union{Missing, T}}
+    nonmissings         :: Vector{Int}
+    nmv                 :: Vector{T}
+    originalmin         :: T
+    originalmax         :: T
 end 
-
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # Output type for imputed values

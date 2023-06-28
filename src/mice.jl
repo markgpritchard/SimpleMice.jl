@@ -15,6 +15,8 @@ Takes a `DataFrame` and imputes missing values using multiple imputation by chai
     imputation algorithm. If no variables are supplied to the function, all columns 
     in the DataFrame will be used.
 
+Only binary and continuous variables are currently supported.
+
 ## Keyword arguments 
 * Any of `binvars`, `contvars` and `noimputevars` can be supplied as keyword arguments 
     if not supplied as positional arguments. If not supplied, variables with no 
@@ -31,9 +33,6 @@ Takes a `DataFrame` and imputes missing values using multiple imputation by chai
     of binvars`, `contvars` and `noimputevars`. Default is `true` if vars is supplied 
     and `false` otherwise.
 * `verbose = true`: whether to display messages showing progress of the function.
-
-## Examples 
-To do
 """
 function mice(df; kwargs...)
     vars = names(df) # use all variable names 
@@ -54,133 +53,146 @@ function mice(df, vars::Vector{Symbol};
     return mice(df, bv, cv, niv; verbose, kwargs...)
 end 
 
-function mice(df, binvars::Vector, contvars::Vector, noimputevars::Vector; 
-        n = 5, verbose = true, kwargs...
-    ) 
-    if verbose @info "Starting to initialize imputation process" end 
-    tempdf = initializetempdf(df, binvars, contvars, noimputevars)
-    imputeddfs = [ impute!(tempdf, binvars, contvars, noimputevars, df; 
-        verbose, verbosei = i, kwargs...) 
-        for i ∈ 1:n ]
-    return ImputedDataFrame(df, n, imputeddfs)
-end 
+function mice(df, binvars::Vector, contvars::Vector, noimputevars::Vector; kwargs...)
+    allvars = [ binvars; contvars; noimputevars ]
+    return _mice(df, allvars, binvars, contvars, noimputevars; kwargs...)
+end
 
 function mice(df, var1, vars...; kwargs...) 
     return mice(df, [ var1, vars... ]; kwargs...)
 end  
 
-
-# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-# Create a DataFrame that will hold temporary values for each variable 
-# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-function initializetempdf(df, binvars, contvars, noimputevars)
-    tempdf = DataFrame([
-        [ var => initializebinarytempvalues(df, var) for var ∈ binvars ];
-        [ var => initializecontinuoustempvalues(df, var) for var ∈ contvars ];
-        [ var => initializenoimputetempvalues(df, var) for var ∈ noimputevars ]
-    ])
-    return tempdf
+function _mice(df, allvars, binvars, contvars, noimputevars; n = 5, verbose = true, kwargs...) 
+    if verbose @info "Starting to initialize imputation process" end 
+    M = initializematrix(df, allvars, binvars, contvars, noimputevars)
+    imputeddfs = [ impute!(M, allvars, binvars, contvars, noimputevars, df; 
+        verbose, verbosei = i, kwargs...) 
+        for i ∈ 1:n ]
+    return ImputedDataFrame(df, n, imputeddfs)
+    return M
 end 
 
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-# Initialize binary variables 
+# Initialize variables
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-function initializebinarytempvalues(df::DataFrame, var::Symbol)
-    variable, nonmissings = _initializevalues(df, var)
-    nmv = variable[nonmissings]
-    originalmin = minimum(nmv)
-    originalmax = maximum(nmv)
-    return [ initializebinarytempvalue(variable[i], variable, nonmissings, originalmin, originalmax) 
-        for i ∈ eachindex(variable) ]
+function initializematrix(df, allvars, binvars, contvars, noimputevars)
+    numbervariables = length(allvars)
+    M = Matrix{TempImputedValues}(undef, size(df, 1), numbervariables)
+    initializematrix!(M, df, allvars, binvars, contvars, noimputevars)
+    return M
 end 
 
-function initializebinarytempvalue(value::T, variable::Vector{<:Union{T, Missing}}, 
-        nonmissings, originalmin::T, originalmax::T
-    ) where T <: Number
-    return BinaryTempImputedValues{T}(value, originalmin, originalmax, false, value, value)
+function initializematrix!(M, df, allvars, binvars, contvars, noimputevars)
+    for (i, v) ∈ enumerate(allvars)
+        if v ∈ binvars      M[:, i] = initializebinarytempvalues(df, v)     end 
+        if v ∈ contvars     M[:, i] = initializecontinuoustempvalues(df, v) end 
+        if v ∈ noimputevars M[:, i] = initializenoimputetempvalues(df, v)   end 
+    end 
 end 
 
-function initializebinarytempvalue(value::Missing, variable::Vector{<:Union{T, Missing}}, 
-        nonmissings, originalmin::T, originalmax::T
-    ) where T <: Number
-    initialvalue = variable[sample(nonmissings)]
-    return BinaryTempImputedValues{T}(initialvalue, originalmin, originalmax, true, initialvalue, initialvalue)
+function initializebinarytempvalues(df, var)
+    properties = initializevalues(df, var)
+    return initializebinarytempvalues(properties)
 end 
 
-function initializebinarytempvalue(value::T, variable::Vector{<:Union{T, Missing}}, 
-        nonmissings, originalmin::T, originalmax::T
-    ) where T <: AbstractString
-    return initializebinarytempvaluestring(value, originalmin, originalmax, false)
+function initializebinarytempvalues(properties)
+    return [ initializebinarytempvalue(value, properties) for value ∈ properties.values ]
 end 
 
-function initializebinarytempvalue(value::Missing, variable::Vector{<:Union{T, Missing}}, 
-        nonmissings, originalmin::T, originalmax::T
-    ) where T <: AbstractString
-    initialvalue = variable[sample(nonmissings)]
-    return initializebinarytempvaluestring(initialvalue, originalmin, originalmax, true)
+function initializebinarytempvalue(value::T, properties::InitializeValues{T}) where T
+    return initializebinarytempvalue(value, properties, false)
 end 
 
-function initializebinarytempvaluestring(value::T, originalmin::T, originalmax::T, 
+function initializebinarytempvalue(value::Missing, properties::InitializeValues{T}) where T
+    possiblevalue = sample(properties.nmv)
+    return initializebinarytempvalue(possiblevalue, properties, true)
+end 
+
+function initializebinarytempvalue(value::T, properties::InitializeValues{T}, originalmiss) where T <: Number 
+    return TempImputedValues{T}(value, ImputedBinary, originalmiss, properties.originalmin, 
+        properties.originalmax, value, value)
+end 
+
+function initializebinarytempvalue(value::T, properties::InitializeValues{T}, 
         originalmiss::Bool
-    ) where T
-    initialtruth = value == originalmax
-    return BinaryTempImputedValues{T}(value, originalmin, originalmax, originalmiss, initialtruth, initialtruth)
+    ) where T <: AbstractString 
+    initialtruth = value == properties.originalmax
+    return TempImputedValues{T}(value, ImputedBinary, originalmiss, properties.originalmin, 
+    properties.originalmax, initialtruth, initialtruth)
 end
 
-function _initializevalues(df, var)
-    variable = getproperty(df, var)
-    nonmissings = identifynonmissings(variable)
-    return ( variable, nonmissings )
+function initializecontinuoustempvalues(df, var)
+    properties = initializevalues(df, var)
+    return initializecontinuoustempvalues(properties)
 end 
 
-# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-# Initialize continuous variables 
-# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-function initializecontinuoustempvalues(df::DataFrame, var::Symbol)
-    variable, nonmissings = _initializevalues(df, var)
-    return [ initializecontinuoustempvalue(variable[i], variable, nonmissings) 
-        for i ∈ eachindex(variable) ]
+function initializecontinuoustempvalues(properties)
+    return [ initializecontinuoustempvalue(value, properties) for value ∈ properties.values ]
 end 
 
-function initializecontinuoustempvalue(value::T, variable::Vector{<:Union{T, Missing}}, 
-        nonmissings
-    ) where T
-    return ContinuousTempImputedValues{T}(value, false, value)
+function initializecontinuoustempvalue(value::T, properties::InitializeValues{T}) where T
+    return initializecontinuoustempvalue(value, properties, false)
 end 
 
-function initializecontinuoustempvalue(value::Missing, variable::Vector{<:Union{T, Missing}}, 
-        nonmissings
-    ) where T 
-    initialvalue = variable[sample(nonmissings)]
-    return ContinuousTempImputedValues{T}(initialvalue, true, initialvalue)
+function initializecontinuoustempvalue(value::Missing, properties::InitializeValues{T}) where T
+    possiblevalue = sample(properties.nmv)
+    return initializecontinuoustempvalue(possiblevalue, properties, true)
 end 
 
+function initializecontinuoustempvalue(value::T, properties::InitializeValues{T}, originalmiss) where T
+    return TempImputedValues{T}(value, ImputedContinuous, originalmiss, properties.originalmin, 
+    properties.originalmax, value, value)
+end
 
-# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-# Initialize binary variables 
-# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-function initializenoimputetempvalues(df::DataFrame, var::Symbol)
-    variable = getproperty(df, var)
-    return initializenoimputetempvalues(variable)
+function initializenoimputetempvalues(df, var)
+    properties = initializevalues(df, var)
+    return initializenoimputetempvalues(properties)
 end 
 
-function initializenoimputetempvalues(variable::Vector{Union{T, Missing}}) where T 
-    nomissvariable::Vector{T} = [ v for v ∈ variable]
-    return nomissvariable 
+function initializenoimputetempvalues(properties)
+    _initializenoimputetempvalueswarning(properties)
+    return [ initializenoimputetempvalue(value, properties) for value ∈ properties.values ]
 end 
 
-initializenoimputetempvalues(variable) = variable
+function initializenoimputetempvalue(value::T, properties::InitializeValues{T}) where T <: Number
+    return TempImputedValues{T}(value, NoneImputed, false, properties.originalmin,
+        properties.originalmax, value, value)
+end 
 
-# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-# Identify non-missing values 
-# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+function initializenoimputetempvalue(value::T, properties::InitializeValues{T}) where T <: String
+    initialtruth = value == originalmax
+    return TempImputedValues{T}(value, NoneImputed, false, properties.originalmin, 
+        properties.originalmax, initialtruth, initialtruth)
+end 
 
-function identifynonmissings(variable::Vector{<:AbstractTempImputedValues}) 
+function _initializenoimputetempvalueswarning(properties::InitializeValues{T}) where T <: String
+    if length(unique(properties.nmv)) > 2 
+        @warn """
+        Categorical variables not currently supported, even for non-imputed values. 
+        Function will continue but will give unreliable results.
+        """
+    end 
+end 
+
+_initializenoimputetempvalueswarning(properties) = nothing
+
+function initializevalues(df, var)
+    values = getproperty(df, var)
+    return initializevalues(df, var, values)
+end 
+
+function initializevalues(df, var, values::Vector{<:Union{Missing, T}}) where T
+    values = getproperty(df, var)
+    nonmissings = identifynonmissings(values)
+    nmv = values[nonmissings]
+    originalmin = minimum(nmv)
+    originalmax = maximum(nmv)
+    return InitializeValues{T}(values, nonmissings, nmv, originalmin, originalmax)
+end 
+
+function identifynonmissings(variable::Vector{TempImputedValues}) 
     return findall(x -> !x.originalmiss, variable)
 end
 
@@ -191,158 +203,128 @@ identifynonmissings(variable) = findall(x -> !ismissing(x), variable)
 # Impute values 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-function impute!(tempdf, binvars, contvars, noimputevars, df; 
+function impute!(M, allvars, binvars, contvars, noimputevars, df; 
         initialvaluesfunc = sample, verbose, verbosei, kwargs...
     )
     if verbose @info "Starting imputation set $verbosei" end 
-    initialvalues!(tempdf, initialvaluesfunc, binvars, contvars, noimputevars)
-    imputedvalues = imputevalues!(tempdf, binvars, contvars, df; kwargs...)
-    return imputedvalues
+    initialvalues!(M, initialvaluesfunc)
+    imputevalues!(M, allvars, binvars, contvars; kwargs...)
+    imputeddf = imputedf(df, M, allvars, noimputevars)
+    return imputeddf
 end 
 
-function initialvalues!(tempdf, initialvaluesfunc, binvars, contvars, noimputevars)
-    for v ∈ binvars initialbinvalue!(tempdf, initialvaluesfunc, v) end 
-    for v ∈ contvars initialvalue!(tempdf, initialvaluesfunc, v) end 
-end
+function initialvalues!(M, initialvaluesfunc)
+    for i ∈ axes(M, 2) 
+        M[1, i].valuetype == NoneImputed && continue
+        _initialvalues!(M[:, i], initialvaluesfunc) 
+    end 
+end 
 
-initialbinvalue!(tempdf, initialvaluesfunc::Sample, v) = initialvalue!(tempdf, initialvaluesfunc, v)
+_initialvalues!(v, initialvaluesfunc::Sample) = __initialvalues!(v, initialvaluesfunc)
 
-# Counter - user receives exactly one notification about sending other functions to initialbinvalue!
+# Counter - user receives exactly one notification about sending other functions 
+# to initialvalues! with binary variables 
 let initialbinvaluestate = 0
     global initialbinvaluecounter() = (initialbinvaluestate += 1)
 end
 
-function initialbinvalue!(tempdf, initialvaluesfunc, v) 
-    if initialbinvaluecounter() == 1  
-        @info """
-        Initial values of binary variables are always selected by sample, regardless 
-            of initialvaluesfunc argument
-        """ 
-    end 
-    initialvalue!(tempdf, sample, v)
-end 
-
-function initialvalue!(tempdf, initialvaluesfunc, var)
-    variable = getproperty(tempdf, var)
-    nm = identifynonmissings(variable)
-    nmvariablevalues = [ variable[i].originalvalue for i ∈ nm ]
-    for (i, v) ∈ enumerate(variable)
-        if v.originalmiss 
-            initialvalue = initialvaluesfunc(nmvariablevalues)
-            insertinitialvalue!(tempdf, i, var, initialvalue)
+function _initialvalues!(v, initialvaluesfunc)
+    if v[i].valuetype == ImputedContinuous 
+        __initialvalues!(v, initialvaluesfunc)
+    else 
+        if initialbinvaluecounter() == 1  
+            @info """
+            Initial values of binary variables are always selected by sample, regardless 
+                of initialvaluesfunc argument
+            """ 
         end 
+        __initialvalues!(v, sample)
     end 
 end 
 
-function insertinitialvalue!(tempdf, i, var, initialvalue::Number)
-    tempdf[i, var].imputedvalue = initialvalue 
-end 
-
-function insertinitialvalue!(tempdf, i, var, initialvalue::AbstractString)
-    initialtruth = initialvalue == tempdf[i, var].originalmaximum
-    tempdf[i, var].imputedvalue = initialtruth 
-end 
-
-function makeworkingvector(df, var)
-    variable = getproperty(df, var) 
-    return makeworkingvector(variable)
-end 
-
-makeworkingvector(variable) = variable
-
-function makeworkingvector(variable::Vector{<:AbstractTempImputedValues}) 
-    return [ v.imputedvalue for v ∈ variable ]
-end 
-
-function makeworkingvector(variable::Vector{<:AbstractString}) 
-    maxv = maximum(variable)
-    return [ v == maxv for v ∈ variable ]
-end 
-
-function makeworkingvector(variable::Vector{ImputedVector{T}}) where T <: AbstractString
-    maxv = maximum(variable.imputedvalues)
-    return [ v.imputedvalue == maxv for v ∈ variable ]
-end 
-
-function makeworkingmatrix(df)
-    M = ones(size(df))
-    for (i, v) ∈ enumerate(Symbol.(names(df)))
-        M[:, i] = makeworkingvector(df, v)
+function __initialvalues!(v, initialvaluesfunc) 
+    nm = identifynonmissings(v)
+    nmv = getproperty.(v[nm], :imputedvalue)
+    for j ∈ eachindex(v) 
+        if v[j].originalmiss 
+            v[j].probability = initialvaluesfunc(nmv)
+            v[j].imputedvalue = initialvaluesfunc(nmv)
+        end
     end
-    return M
 end 
 
-function imputevalues!(tempdf::DataFrame, binvars::Vector, contvars::Vector, df::DataFrame; 
-        m = 100
-    )
-    M = makeworkingmatrix(tempdf)
-    binindices = findall(x -> x ∈ binvars, Symbol.(names(tempdf)))
-    contindices = findall(x -> x ∈ contvars, Symbol.(names(tempdf)))
-    for _ ∈ 1:m imputevalues!(tempdf, M, binindices, contindices) end 
-    imputedvalues = deepcopy(df)
-    for var ∈ [ binvars; contvars ]
-        select!(imputedvalues, Not(var))
-        insertcols!(imputedvalues, var => finaldfvalues(getproperty(tempdf, var)))
-    end  
-    return imputedvalues
+function imputevalues!(M, allvars, binvars, contvars; m = 100)
+    for _ ∈ 1:m _imputevalues!(M, allvars, binvars, contvars) end 
 end 
 
-function imputevalues!(tempdf::DataFrame, M::Matrix, binindices::Vector, contindices::Vector) 
-    for i ∈ [ binindices; contindices ]
-        if i ∈ binindices imputebinvalues!(tempdf, M, i) end 
-        if i ∈ contindices imputecontvalues!(tempdf, M, i) end 
+function _imputevalues!(M, allvars, binvars, contvars)
+    for (i, v) ∈ enumerate(allvars)
+        if v ∈ binvars  imputebinvalues!(M, i)  end 
+        if v ∈ contvars imputecontvalues!(M, i) end 
     end 
 end 
 
-function imputebinvalues!(tempdf, M, i) 
-    v = M[:, i]
-    M[:, i] = ones(size(M, 1))
-    regr = fit(GeneralizedLinearModel, M, v, Binomial())
+function imputebinvalues!(M, i) 
+    currentM, v = currentmatrixandvector(M, i)
+    regr = fit(GeneralizedLinearModel, currentM, v, Binomial())
     probabilities = predict(regr)
-    var = Symbol.(names(tempdf))[i]
     for j ∈ axes(M, 1)
-        if getproperty(tempdf, var)[j].originalmiss
-            getproperty(tempdf, var)[j].probability = probabilities[j]
-            getproperty(tempdf, var)[j].imputedvalue = rand() < probabilities[j]
+        if M[j, i].originalmiss
+            M[j, i].probability = probabilities[j]
+            M[j, i].imputedvalue = rand() < probabilities[j]
         end 
     end 
-    M[:, i] = makeworkingvector(tempdf, var)
 end 
 
-function imputecontvalues!(tempdf, M, i) 
-    v = M[:, i]
-    M[:, i] = ones(size(M, 1))
-    regr = fit(LinearModel, M, v)
+function imputecontvalues!(M, i) 
+    currentM, v = currentmatrixandvector(M, i)
+    regr = fit(LinearModel, currentM, v)
     predictions = predict(regr)
-    var = Symbol.(names(tempdf))[i]
     for j ∈ axes(M, 1)
-        if getproperty(tempdf, var)[j].originalmiss
-            getproperty(tempdf, var)[j].imputedvalue = predictions[j]
+        if M[j, i].originalmiss
+            M[j, i].imputedvalue = predictions[j]
         end 
     end 
-    M[:, i] = makeworkingvector(tempdf, var)
 end 
 
-function finaldfvalues(imputedvector::Vector{ContinuousTempImputedValues{T}}) where T
-    newvector::Vector{T} = [ finaldfvalue(v) for v ∈ imputedvector ] 
+currentvalue(a) = a.imputedvalue
+
+function currentmatrixandvector(M, i)
+    currentM = currentvalue.(M)
+    v = currentM[:, i]
+    currentM[:, i] = ones(size(currentM, 1))
+    return ( currentM, v ) 
+end 
+
+function imputedf(df, M, allvars, noimputevars)
+    newdf = deepcopy(df)
+    imputedf!(newdf, M, allvars, noimputevars)
+    return newdf
+end 
+
+function imputedf!(newdf, M, allvars, noimputevars)
+    for (i, var) ∈ enumerate(allvars) 
+        var ∈ noimputevars && continue
+        imputedfvector!(newdf, M[:, i], var) 
+    end
+end 
+
+function imputedfvector!(newdf, vector, var)
+    select!(newdf, Not(var))
+    insertcols!(newdf, var => imputedfvector(vector, vector[1]))
+end 
+
+function imputedfvector(vector, val::TempImputedValues{T}) where T
+    newvector::Vector{T} = [ imputedvalue(v) for v ∈ vector ]
     return newvector 
 end 
 
-function finaldfvalues(imputedvector::Vector{BinaryTempImputedValues{T}}) where T
-    newvector::Vector{T} = [ finaldfvalue(v) for v ∈ imputedvector ] 
-    return newvector 
+function imputedvalue(v::TempImputedValues{T}) where T <: Number 
+    return v.imputedvalue 
 end 
 
-finaldfvalue(v::ContinuousTempImputedValues) = v.imputedvalue 
-
-function finaldfvalue(v::BinaryTempImputedValues)
-    if v.originalmiss 
-        if v.imputedvalue 
-            return v.originalmaximum 
-        else # not v.imputedvalue 
-            return v.originalminimum 
-        end # if v.imputedvalue 
-    else # not v.originalmiss
-        return v.originalvalue 
-    end # if v.originalmiss
+function imputedvalue(v::TempImputedValues{T}) where T <: AbstractString 
+    if v.imputedvalue == 1 return v.originalmaximum 
+    else                   return v.originalminimum
+    end
 end 
