@@ -143,7 +143,7 @@ end
 
 function initializecontinuoustempvalue(value::T, properties::InitializeValues{T}, originalmiss) where T
     return TempImputedValues{T}(value, ImputedContinuous, originalmiss, properties.originalmin, 
-    properties.originalmax, value, value)
+        properties.originalmax, value, value)
 end
 
 function initializenoimputetempvalues(df, var)
@@ -162,7 +162,7 @@ function initializenoimputetempvalue(value::T, properties::InitializeValues{T}) 
 end 
 
 function initializenoimputetempvalue(value::T, properties::InitializeValues{T}) where T <: String
-    initialtruth = value == originalmax
+    initialtruth = value == properties.originalmax
     return TempImputedValues{T}(value, NoneImputed, false, properties.originalmin, 
         properties.originalmax, initialtruth, initialtruth)
 end 
@@ -208,7 +208,8 @@ function impute!(M, allvars, binvars, contvars, noimputevars, df;
     )
     if verbose @info "Starting imputation set $verbosei" end 
     initialvalues!(M, initialvaluesfunc)
-    imputevalues!(M, allvars, binvars, contvars; kwargs...)
+    currentM, vec = currentmatrixandvector(M, 1)
+    imputevalues!(currentM, vec, M, allvars, binvars, contvars; kwargs...)
     imputeddf = imputedf(df, M, allvars, noimputevars)
     return imputeddf
 end 
@@ -253,20 +254,21 @@ function __initialvalues!(v, initialvaluesfunc)
     end
 end 
 
-function imputevalues!(M, allvars, binvars, contvars; m = 100)
-    for _ ∈ 1:m _imputevalues!(M, allvars, binvars, contvars) end 
+function imputevalues!(currentM, vec, M, allvars, binvars, contvars; m = 100)
+    for _ ∈ 1:m _imputevalues!(currentM, vec, M, allvars, binvars, contvars) end 
 end 
 
-function _imputevalues!(M, allvars, binvars, contvars)
+function _imputevalues!(currentM, vec, M, allvars, binvars, contvars)
     for (i, v) ∈ enumerate(allvars)
-        if v ∈ binvars  imputebinvalues!(M, i)  end 
-        if v ∈ contvars imputecontvalues!(M, i) end 
+        if v ∈ binvars  imputebinvalues!(currentM, vec, M, i)  end 
+        if v ∈ contvars imputecontvalues!(currentM, vec, M, i) end 
     end 
 end 
 
-function imputebinvalues!(M, i) 
-    currentM, v = currentmatrixandvector(M, i)
-    regr = fit(GeneralizedLinearModel, currentM, v, Binomial())
+function imputebinvalues!(currentM, vec, M, i) 
+    for j ∈ eachindex(vec) vec[j] = currentM[j, i] end 
+    currentM[:, i] = ones(size(currentM, 1))
+    regr = fit(GeneralizedLinearModel, currentM, vec, Binomial())
     probabilities = predict(regr)
     for j ∈ axes(M, 1)
         if M[j, i].originalmiss
@@ -274,10 +276,12 @@ function imputebinvalues!(M, i)
             M[j, i].imputedvalue = rand() < probabilities[j]
         end 
     end 
+    currentM[:, i] = currentvalue.(M[:, i])
 end 
 
-function imputecontvalues!(M, i) 
-    currentM, v = currentmatrixandvector(M, i)
+function imputecontvalues!(currentM, v, M, i) 
+    for j ∈ eachindex(v) v[1] = currentM[j, i] end 
+    currentM[:, i] = ones(size(currentM, 1))
     regr = fit(LinearModel, currentM, v)
     predictions = predict(regr)
     for j ∈ axes(M, 1)
@@ -285,6 +289,7 @@ function imputecontvalues!(M, i)
             M[j, i].imputedvalue = predictions[j]
         end 
     end 
+    currentM[:, i] = currentvalue.(M[:, i])
 end 
 
 currentvalue(a) = a.imputedvalue
