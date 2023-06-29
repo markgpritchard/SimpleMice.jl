@@ -3,25 +3,37 @@
 # Types for temporary dataset while imputing values
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-abstract type AbstractTempImputedValues end 
+@enum ImputedValueTypes ImputedBinary ImputedContinuous NoneImputed
 
-# Imputed values can be continuous or binary 
-# (support for categorical variables is intended to be added later)
-
-mutable struct ContinuousTempImputedValues{T} <: AbstractTempImputedValues 
-    originalvalue       :: T 
-    originalmiss        :: Bool 
-    imputedvalue        :: Float64 
+struct VariableProperties
+    variablename        :: Symbol 
+    id                  :: Int
+    variabletype        :: ImputedValueTypes 
+    datatype            :: DataType
+    originalmissings    :: Vector{Int}
+    nmvec               :: Vector{Float64} 
+    truestring          :: String 
+    falsestring         :: String 
+    truenumber          :: Float64 
+    falsenumber         :: Float64
 end 
 
-mutable struct BinaryTempImputedValues{T} <: AbstractTempImputedValues 
-    originalvalue       :: T 
-    originalminimum     :: T 
-    originalmaximum     :: T 
-    originalmiss        :: Bool 
-    probability         :: Float64 
-    imputedvalue        :: Bool  
+struct InitialValues{T} 
+    values              :: Vector{<:Union{Missing, T}}
+    nonmissings         :: Vector{Int}
+    nmv                 :: Vector{T}
+    originalmin         :: T
+    originalmax         :: T
 end 
+
+struct VariableCount
+    binary              :: Int
+    continuous          :: Int
+    nonimputed          :: Int
+    total               :: Int
+end 
+
+VariableCount(b, c, n) = VariableCount(b, c, n, b + c + n)
 
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -61,10 +73,3 @@ struct ImputedRegressionResult
     pvalue              :: Vector{Float64}
     confint             :: Vector{Tuple{Float64, Float64}}
 end
-
-
-# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-# Type of function sample 
-# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-Sample = typeof(sample)

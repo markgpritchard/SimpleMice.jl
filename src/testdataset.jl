@@ -35,16 +35,19 @@ function testdataset()
     sexes::Vector{Union{String, Missing}} = [ rand() < .5 ? "F" : "M" for _ ∈ 1:1000 ]
     vara::Vector{Union{Bool, Missing}} = [ rand() < age * .0025 for age ∈ ages ]
     varb::Vector{Union{Int, Missing}} = [ rand() < (.1 + age * .0025) for age ∈ ages ]
-    varc::Vector{Union{Bool, Missing}} = [ rand() < .005 for _ ∈ 1:1000 ]
-    vard::Vector{Union{Float64, Missing}} = rand(Normal(25, 5), 1000)
-    vare::Vector{Union{String, Missing}} = [ rand() < .8 ? "Y" : "N" for _ ∈ 1:1000 ]
-    varf::Vector{Union{Bool, Missing}} = [ ages[i] > 18 && vare[i] == "Y" ? rand() < .8 : false for i ∈ 1:1000 ]
-    op = [ .025 + .00025 * ages[i] + .05 * (vara[i]  + varb[i] + varc[i]) + .005 * vard[i] / 30 for i ∈ 1:1000 ]
-    oq = [ vare[i] == "Y" ? 2 * op[i] : op[i] for i ∈ 1:1000 ]
-    os = [ varf[i] ? oq[i] / 4 : oq[i] for i ∈ 1:1000 ]
+    varc::Vector{Union{Bool, Missing}} = [ rand() < .01 for _ ∈ 1:1000 ]
+    vardm = [ age < 15 ? age / 10 : 1.5 + ifelse(sex == "F", 0, .2) for (age, sex) ∈ zip(ages, sexes) ]
+    vard::Vector{Union{Float64, Missing}} = [ rand(Normal(v, .015 * v)) for v ∈ vardm ]
+    vare::Vector{Union{Float64, Missing}} = [ rand(Normal(25, 5)) * v^2 for v ∈ vard ]
+    varf::Vector{Union{String, Missing}} = [ rand() < .8 ? "Y" : "N" for _ ∈ 1:1000 ]
+    varg::Vector{Union{Bool, Missing}} = [ ages[i] > 18 && varf[i] == "Y" ? rand() < .8 : false for i ∈ 1:1000 ]
+    op = [ .025 + .00025 * ages[i] + .05 * (vara[i]  + varb[i] + varc[i]) + .005 * (vare[i] / vard[i]^2) / 30 
+        for i ∈ 1:1000 ]
+    oq = [ varf[i] == "Y" ? 2 * op[i] : op[i] for i ∈ 1:1000 ]
+    os = [ varg[i] ? oq[i] / 4 : oq[i] for i ∈ 1:1000 ]
     outcome = [ rand() < osv / (osv + 1) for osv ∈ os ]
-    vars = [ ages, sexes, vara, varb, varc, vard, vare, varf, outcome ]
-    varnames = [ :Ages, :Sexes, :Vara, :Varb, :Varc, :Vard, :Vare, :Varf, :Outcome ]
+    vars = [ ages, sexes, vara, varb, varc, vard, vare, varf, varg, outcome ]
+    varnames = [ :Ages, :Sexes, :Vara, :Varb, :Varc, :Vard, :Vare, :Varf, :Varg, :Outcome ]
     df = DataFrame([ name => v for (name, v) ∈ zip(varnames, vars) ])
     return df
 end 
