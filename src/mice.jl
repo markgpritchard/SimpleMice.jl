@@ -69,11 +69,10 @@ function _mice(df, binvars, contvars, noimputevars; n = 5, verbose = true, kwarg
     variablecounts = VariableCount(length(binvars), length(contvars), length(noimputevars))
     tablelength = size(df, 1)
     variableproperties, M = getdetails(df, binvars, contvars, noimputevars, variablecounts, tablelength)
-  #  M = currentmatrix(variableproperties, variablecounts, tablelength)
-    imputeddfs = [ impute!(M, variableproperties, df; verbose, verbosei = i, kwargs...) 
+    vec = M[:, 1]
+    imputeddfs = [ impute!(M, vec, variableproperties, df; verbose, verbosei = i, kwargs...) 
         for i ∈ 1:n ]
-    #return ImputedDataFrame(df, n, imputeddfs)
-    return M
+    return ImputedDataFrame(df, n, imputeddfs)
 end 
 
 function makevariableranges(vc)
@@ -140,7 +139,7 @@ function setinitialvalues(variabletype, vec, missings, nmvec::Vector{T}, maxvalu
         else            currentvalues[i] = vec[i] == maxvalue ? 1. : .0
         end
     end 
-    return currentvalues #CurrentVector(currentvalues)
+    return currentvalues 
 end 
 
 function setinitialvalues(variabletype, vec, missings, nmvec::Vector{T}, maxvalue, minvalue) where T <: Number
@@ -150,13 +149,9 @@ function setinitialvalues(variabletype, vec, missings, nmvec::Vector{T}, maxvalu
         else            currentvalues[i] = Float64(vec[i])
         end
     end 
-    return currentvalues #CurrentVector(currentvalues)
+    return currentvalues 
 end 
-#=
-function identifymissings(variable::Vector{TempImputedValues}) 
-    return findall(x -> x.originalmiss, variable)
-end
-=#
+
 identifymissings(variable) = findall(x -> ismissing(x), variable)
 
 identifynonmissings(variable) = findall(x -> !ismissing(x), variable)
@@ -174,7 +169,7 @@ function currentmatrix!(M, variableproperties::NamedTuple)
 end 
 
 function currentmatrix!(M, dict::Dict)
-    for k ∈ keys(dict) M[:, dict[k].id] = dict[k].currentvalues end #.values end 
+    for k ∈ keys(dict) M[:, dict[k].id] = dict[k].currentvalues end 
 end 
 
 
@@ -182,14 +177,14 @@ end
 # Impute values 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-function impute!(M, variableproperties, df; 
+function impute!(M, vec, variableproperties, df; 
         initialvaluesfunc = sample, verbose, verbosei, kwargs...
     )
     if verbose @info "Starting imputation set $verbosei" end 
     initialvalues!(M, variableproperties, initialvaluesfunc)
-    imputevalues!(M, variableproperties; kwargs...)
- #   imputeddf = makeoutputdf(df, variables, allvars, noimputevars)
- #   return imputeddf
+    imputevalues!(M, vec, variableproperties; kwargs...)
+    imputeddf = makeoutputdf(df, variableproperties, M)
+    return imputeddf
 end 
 
 function initialvalues!(M, variableproperties::NamedTuple, initialvaluesfunc)
@@ -210,27 +205,26 @@ end
 
 function initialvalues!(M, variable, initialvaluesfunc, i)
     for j ∈ variable.originalmissings
-      #  variable.currentvalues.values[i] = initialvaluesfunc(variable.nmvec)
         M[j, i] = initialvaluesfunc(variable.nmvec)
     end 
 end 
 
-function imputevalues!(M, variableproperties; m = 100)
-    for _ ∈ 1:m _imputevalues!(M, variableproperties) end 
+function imputevalues!(M, vec, variableproperties; m = 100)
+    for _ ∈ 1:m _imputevalues!(M, vec, variableproperties) end 
 end 
 
-function _imputevalues!(M, variableproperties)
-    imputevaluesbin!(M, getproperty(variableproperties, :binarydict))
-    imputevaluescont!(M, getproperty(variableproperties, :contdict))
+function _imputevalues!(M, vec, variableproperties)
+    imputevaluesbin!(M, vec, getproperty(variableproperties, :binarydict))
+    imputevaluescont!(M, vec, getproperty(variableproperties, :contdict))
 end
 
-function imputevaluesbin!(M, dict::Dict)
-    for k ∈ keys(dict) imputevaluesbin!(M, dict[k]) end 
+function imputevaluesbin!(M, vec, dict::Dict)
+    for k ∈ keys(dict) imputevaluesbin!(M, vec, dict[k]) end 
 end 
 
-function imputevaluesbin!(M, variable::VariableProperties)
+function imputevaluesbin!(M, vec, variable::VariableProperties)
     i = variable.id
-    vec = deepcopy(M[:, i])
+    vec .= M[:, i]
     M[:, i] = ones(size(M, 1))
     regr = fit(GeneralizedLinearModel, M, vec, Binomial())
     probabilities = predict(regr)
@@ -244,13 +238,13 @@ function imputevaluesbin!(M, variable, probabilities, i)
     end
 end 
 
-function imputevaluescont!(M, dict::Dict)
-    for k ∈ keys(dict) imputevaluescont!(M, dict[k]) end 
+function imputevaluescont!(M, vec, dict::Dict)
+    for k ∈ keys(dict) imputevaluescont!(M, vec, dict[k]) end 
 end 
 
-function imputevaluescont!(M, variable::VariableProperties)
+function imputevaluescont!(M, vec, variable::VariableProperties)
     i = variable.id
-    vec = deepcopy(M[:, i])
+    vec .= M[:, i]
     M[:, i] = ones(size(M, 1))
     regr = fit(LinearModel, M, vec)
     predictions = predict(regr)
@@ -264,93 +258,48 @@ function imputevaluescont!(M, variable, predictions, i)
     end
 end 
 
-#######################
-
-#=
-
-    #
-#    for (i, var) ∈ enumerate(allvars)
- #       _imputevalues!(M, variables[i], binvars, contvars, i, var)
-  #  end 
-#end 
-
-function _imputevalues!(M, variable, binvars, contvars, i, var)
-    if var ∈ binvars  
-        imputebinvalues!(M, variable, i)  
-    elseif var ∈ contvars 
-        imputecontvalues!(M, variable, i) 
-    end 
-end 
-
-function imputebinvalues!(M, variable, i::Int) 
-    vec = deepcopy(M[:, i])
-    M[:, i] = ones(size(M, 1))
-    regr = fit(GeneralizedLinearModel, M, vec, Binomial())
-    probabilities = predict(regr)
-    imputebinvalues!(M, variable, probabilities) 
-    M[:, i] = currentvalue.(variable)
-end 
-
-function imputebinvalues!(M, variable, probabilities::Vector{Float64}) 
-    for j ∈ axes(M, 1)
-        if variable[j].originalmiss
-            variable[j].probability.p = probabilities[j]
-            variable[j].imputedvalue.v = rand() < probabilities[j]
-        end 
-    end 
-end 
-
-function imputecontvalues!(M, variable, i::Int) 
-    vec = deepcopy(M[:, i])
-    M[:, i] = ones(size(M, 1))
-    regr = fit(LinearModel, M, vec)
-    predictions = predict(regr)
-    imputecontvalues!(M, variable, predictions) 
-    M[:, i] = currentvalue.(variable)
-end 
-
-function imputecontvalues!(M, variable, predictions::Vector{Float64}) 
-    for j ∈ axes(M, 1)
-        if variable[j].originalmiss
-            variable[j].imputedvalue.v = predictions[j]
-        end 
-    end 
-end 
-
-currentvalue(a) = a.imputedvalue.v
-
-
-
-function makeoutputdf(df, variables, allvars, noimputevars)
+function makeoutputdf(df, variableproperties, M)
     newdf = deepcopy(df)
-    makeoutputdf!(newdf, variables, allvars, noimputevars)
+    makeoutputdf!(newdf, variableproperties, M)
     return newdf
 end 
 
-function makeoutputdf!(newdf, variables, allvars, noimputevars)
-    for (i, var) ∈ enumerate(allvars) 
-        var ∈ noimputevars && continue
-        imputedfvector!(newdf, variables[i], var) 
+function makeoutputdf!(newdf, variableproperties::NamedTuple, M)
+    for d ∈ [ :binarydict, :contdict ]
+        makeoutputdf!(newdf, getproperty(variableproperties, d), M)
     end
 end 
 
-function imputedfvector!(newdf, vector, var)
-    select!(newdf, Not(var))
-    insertcols!(newdf, var => imputedfvector(vector, vector[1]))
+function makeoutputdf!(newdf, dict::Dict, M)
+    for k ∈ keys(dict) makeoutputdf!(newdf, dict[k], M) end 
+end
+
+function makeoutputdf!(newdf, variable::VariableProperties, M)
+    select!(newdf, Not(variable.variablename))
+    insertcols!(newdf, variable.variablename => imputedfvector(variable, M))
 end 
 
-function imputedfvector(vector, val::TempImputedValues{T}) where T
-    newvector::Vector{T} = [ imputedvalue(v) for v ∈ vector ]
-    return newvector 
+function imputedfvector(variable, M)
+    datatype = variable.datatype
+    return imputedfvector(datatype, variable, M)
 end 
 
-function imputedvalue(v::TempImputedValues{T}) where T <: Number 
-    return v.imputedvalue.v 
-end 
-
-function imputedvalue(v::TempImputedValues{T}) where T <: AbstractString 
-    if v.imputedvalue.v == 1 return v.originalmaximum 
-    else                     return v.originalminimum
+function imputedfvector(datatype, variable, M) 
+    if datatype <: AbstractString return imputestringvector(datatype, variable, M) 
+    else                          return imputenumbervector(datatype, variable, M) 
     end
 end 
-=#
+
+function imputenumbervector(datatype, variable, M)
+    i = variable.id
+    newvector::Vector{datatype} = M[:, i]
+    return newvector
+end 
+
+function imputestringvector(datatype, variable, M)
+    i = variable.id
+    truestring = variable.truestring
+    falsenumber = variable.falsestring
+    newvector::Vector{datatype} = [ v == 1 ? truestring : falsenumber for v ∈ M[:, i] ]
+    return newvector
+end 

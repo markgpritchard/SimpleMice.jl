@@ -4,16 +4,6 @@
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 @enum ImputedValueTypes ImputedBinary ImputedContinuous NoneImputed
-#=
-abstract type ImputedValueTypes end 
-
-struct ImputedBinary        <: ImputedValueTypes end
-struct ImputedContinuous    <: ImputedValueTypes end
-struct NoneImputed          <: ImputedValueTypes end
-=#
-#struct CurrentVector 
-#    values              :: Vector{Float64} 
-#end
 
 struct VariableProperties
     variablename        :: Symbol 
@@ -29,18 +19,6 @@ struct VariableProperties
   #  currentvalues       :: Vector{Float64} 
 end 
 
-#=
-mutable struct TempImputedValues{T} where T <: ImputedValueTypes
-    originalvalue       :: Float64 
-    valuetype           :: T 
-    datatype            :: DataType
-    originalmiss        :: Bool 
-    originalminimum     :: Float64 
-    originalmaximum     :: Float64 
-    probability         :: Float64 
-    imputedvalue        :: Float64 
-end 
-=#
 struct InitialValues{T} 
     values              :: Vector{<:Union{Missing, T}}
     nonmissings         :: Vector{Int}
@@ -57,13 +35,7 @@ struct VariableCount
 end 
 
 VariableCount(b, c, n) = VariableCount(b, c, n, b + c + n)
-#=
-struct VariableRange
-    binary              :: UnitRange{Int} 
-    continuous          :: UnitRange{Int} 
-    nonimputed          :: UnitRange{Int} 
-end 
-=#
+
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # Output type for imputed values
@@ -102,10 +74,3 @@ struct ImputedRegressionResult
     pvalue              :: Vector{Float64}
     confint             :: Vector{Tuple{Float64, Float64}}
 end
-
-
-# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-# Type of function sample 
-# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-Sample = typeof(sample)
