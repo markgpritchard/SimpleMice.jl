@@ -22,7 +22,7 @@ end
 """
     lm(formula::FormulaTerm, idf::ImputedDataFrame, <additional arguments>; <keyword arguments>)
 
-Fit a generalized linear model to data. Alias for 
+Fit a linear model to data. Alias for 
     `fit(LinearModel, formula, idf, <additional arguments>; <keyword arguments>)`.
 """
 function lm(formula::FormulaTerm, idf::ImputedDataFrame, args...; kwargs...) 
