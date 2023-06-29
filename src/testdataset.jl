@@ -41,7 +41,8 @@ function testdataset()
     vare::Vector{Union{Float64, Missing}} = [ rand(Normal(25, 5)) * v^2 for v ∈ vard ]
     varf::Vector{Union{String, Missing}} = [ rand() < .8 ? "Y" : "N" for _ ∈ 1:1000 ]
     varg::Vector{Union{Bool, Missing}} = [ ages[i] > 18 && varf[i] == "Y" ? rand() < .8 : false for i ∈ 1:1000 ]
-    op = [ .025 + .00025 * ages[i] + .05 * (vara[i]  + varb[i] + varc[i]) + .005 * (vare[i] / vard[i]^2) / 30 for i ∈ 1:1000 ]
+    op = [ .025 + .00025 * ages[i] + .05 * (vara[i]  + varb[i] + varc[i]) + .005 * (vare[i] / vard[i]^2) / 30 
+        for i ∈ 1:1000 ]
     oq = [ varf[i] == "Y" ? 2 * op[i] : op[i] for i ∈ 1:1000 ]
     os = [ varg[i] ? oq[i] / 4 : oq[i] for i ∈ 1:1000 ]
     outcome = [ rand() < osv / (osv + 1) for osv ∈ os ]
