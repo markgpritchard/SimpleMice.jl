@@ -91,9 +91,17 @@ end
 function getdetails(df::DataFrame, binvars, contvars, noimputevars, variablecounts, tablelength) 
     M = zeros(tablelength, variablecounts.total) 
     variableproperties = (
-        binarydict   = Dict([ String(var) => getdetailsbinary!(M, df, var, i) for (i, var) ∈ enumerate(binvars) ]),
-        contdict     = Dict([ String(var) => getdetailscontinuous!(M, df, var, i + variablecounts.binary) for (i, var) ∈ enumerate(contvars) ]), 
-        noimputedict = Dict([ String(var) => getdetailsnoimpute!(M, df, var, i + variablecounts.binary + variablecounts.continuous) for (i, var) ∈ enumerate(noimputevars) ]) 
+        binarydict   = Dict(
+            [ String(var) => getdetailsbinary!(M, df, var, i) for (i, var) ∈ enumerate(binvars) ]
+        ),
+        contdict     = Dict(
+            [ String(var) => getdetailscontinuous!(M, df, var, i + variablecounts.binary) 
+                for (i, var) ∈ enumerate(contvars) ]
+        ), 
+        noimputedict = Dict(
+            [ String(var) => getdetailsnoimpute!(M, df, var, i + variablecounts.binary + variablecounts.continuous) 
+                for (i, var) ∈ enumerate(noimputevars) ]
+        ) 
     )
     return ( variableproperties, M )
 end 
@@ -116,7 +124,9 @@ end
 function getdetails!(M, variabletype, df, var, vec::Vector{<:Union{T, Missing}}, missings, i) where T <: AbstractString
     nmvec::Vector{T} = vec[Not(missings)]
     uniquevalues = unique(nmvec)
-    @assert length(uniquevalues) == 2 "Function currently only supports binary values. Variable $var has $(length(uniquevalues)) unique values"
+    @assert length(uniquevalues) == 2 """
+        Function currently only supports binary values. Variable $var has $(length(uniquevalues)) unique values
+    """
     maxvalue = maximum(uniquevalues)
     minvalue = minimum(uniquevalues)
     floatnmvec = [ v == maxvalue ? 1. : .0 for v ∈ nmvec ]
@@ -132,7 +142,9 @@ function getdetails!(M, variabletype, df, var, vec::Vector{<:Union{T, Missing}},
     return VariableProperties(var, i, variabletype, T, missings, nmvec, "", "", maxvalue, minvalue)
 end 
 
-function setinitialvalues(variabletype, vec, missings, nmvec::Vector{T}, maxvalue, minvalue, floatnmvec) where T <: AbstractString
+function setinitialvalues(variabletype, vec, missings, nmvec::Vector{T}, maxvalue, 
+        minvalue, floatnmvec
+    ) where T <: AbstractString
     currentvalues = zeros(length(vec))
     for i ∈ eachindex(vec)
         if i ∈ missings currentvalues[i] = Float64(sample(floatnmvec)) 
