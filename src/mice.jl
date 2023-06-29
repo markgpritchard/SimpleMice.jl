@@ -125,7 +125,7 @@ function getdetails!(M, variabletype, df, var, vec::Vector{<:Union{T, Missing}},
     nmvec::Vector{T} = vec[Not(missings)]
     uniquevalues = unique(nmvec)
     @assert length(uniquevalues) == 2 """
-        Function currently only supports binary values. Variable $var has $(length(uniquevalues)) unique values
+        getdetails! currently only supports binary values. Variable $var has $(length(uniquevalues)) unique values
     """
     maxvalue = maximum(uniquevalues)
     minvalue = minimum(uniquevalues)
