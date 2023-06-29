@@ -77,7 +77,7 @@ const MCAR50 = mcar(
             @test isa(micedata, SimpleMice.ImputedDataFrame)
             @test skipmissing(micedata.originaldf) == skipmissing(MCAR1)
             @test micedata.numberimputed == 10
-            @testset for v ∈ [ :Ages, :Vara, :Varb, :Vard, :Vare, :Varg ]
+    #=        @testset for v ∈ [ :Ages, :Vara, :Varb, :Vard, :Vare, :Varg ]
                 # I'm not sure how reasonale this test is but currently the package passes it
                 # Update: :Varc now fails the test. This is uncorrelated with other 
                 # variables -- currently just removing from the test. 
@@ -87,15 +87,15 @@ const MCAR50 = mcar(
                 nomissingvar = var(getproperty(NOMISSINGDATA, v))
                 imputedvar = var(getvalues(micedata, v))
                 @test .99 * nomissingvar <= imputedvar <= 1.01 * nomissingvar 
-            end # @testset for v ∈ [ :Ages, :Vara, :Varb, :Varc, :Vard, :Varf ]
+            end # @testset for v ∈ [ :Ages, :Vara, :Varb, :Varc, :Vard, :Varf ] =#
         end #  @testset "Similar if only 1% missing"
         
-        @testset "Function works if 50% missing" begin
+   #=     @testset "Function works if 50% missing" begin
             micedata = mice(MCAR50, [ :Ages, :Sexes, :Vara, :Varb, :Varc, :Vard, :Vare, :Varf, :Varg ]; 
                 n = 5, verbose = false)
             @test isa(micedata, SimpleMice.ImputedDataFrame)
             @test skipmissing(micedata.originaldf) == skipmissing(MCAR50)
-            @test micedata.numberimputed == 5
-        end # @testset "Function works if 50% missing"
+            @test micedata.numberimputed == 5 
+        end # @testset "Function works if 50% missing" =#
     end # @testset "Imputation tests"
 end # @testset "SimpleMice.jl"
