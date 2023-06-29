@@ -16,7 +16,6 @@ struct VariableProperties
     falsestring         :: String 
     truenumber          :: Float64 
     falsenumber         :: Float64
-  #  currentvalues       :: Vector{Float64} 
 end 
 
 struct InitialValues{T} 
