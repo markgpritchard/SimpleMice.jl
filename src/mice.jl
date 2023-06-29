@@ -83,12 +83,9 @@ function initializevariables(df, allvars::Vector{Symbol}, binvars, contvars, noi
 end 
 
 function initializevariables(df, var::Symbol, binvars, contvars, noimputevars)
-    if var ∈ binvars      
-        return initializebinarytempvalues(df, var) 
-    elseif var ∈ contvars
-        return initializecontinuoustempvalues(df, var)
-    else
-        return initializenoimputetempvalues(df, var)
+    if     var ∈ binvars  return initializebinarytempvalues(df, var) 
+    elseif var ∈ contvars return initializecontinuoustempvalues(df, var)
+    else                  return initializenoimputetempvalues(df, var)
     end
 end
 
