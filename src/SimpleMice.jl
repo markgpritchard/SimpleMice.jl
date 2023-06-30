@@ -26,7 +26,7 @@ export describe, eltype, getvalues,
     componentmeans, componentstats, componentvars,
     mean, meanstats, std, summarystats, var,
     fit, glm, lm,
-    desentinelize!,
+    desentinelize!, oneach,
     mcar, mcar!
 
 end # module SimpleMice
