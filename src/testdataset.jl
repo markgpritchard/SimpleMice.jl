@@ -3,12 +3,30 @@
 # Simulate missing completely at random
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
+"""
+    function mcar(df::DataFrame, vars, p)
+
+Create a copy of `df` and set a proportion to missing in the parameters `vars`.
+
+See mutating version `mcar!`
+"""
 function mcar(df, args...)
     ndf = deepcopy(df)
     mcar!(ndf, args...)
     return ndf 
 end 
 
+"""
+    function mcar!(df::DataFrame, vars, p)
+
+Set a proportion `p` of `DataFrame` values to missing in the parameters `vars`.
+
+`vars` can be a vector of variables or a single variable, and `p` can be a single 
+    number applied to all variables or a vector of values, one for each variable.
+
+Values are set to missing if `rand() < p` so the proportion of values set to missing 
+    will not necessarily exactly equal `p`.
+"""
 function mcar!(df::DataFrame, vars::Vector, p::Number)
     ps = [ p for _ ∈ eachindex(vars) ]
     mcar!(df, vars, ps) 
