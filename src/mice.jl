@@ -86,8 +86,6 @@ function _mice(df, binvars, contvars, noimputevars; n = 5, verbose = true, kwarg
     Threads.@threads for i ∈ 1:n 
         imputeddfs[i] = impute(M, vec, variableproperties, df; verbose, verbosei = i, kwargs...)  
     end 
-   # imputeddfs = [ impute!(M, vec, variableproperties, df; verbose, verbosei = i, kwargs...) 
-   #     for i ∈ 1:n ]
     return ImputedDataFrame(df, n, imputeddfs)
 end 
 
