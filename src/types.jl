@@ -56,8 +56,13 @@ end
 
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-# Type to output results of regression of imputed datasets
+# Types to output results 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+struct ImputedResult{T} 
+    results             :: Vector{T} 
+    n                   :: Int 
+end 
 
 # It would be nice to wrap the output of the regression of imputed datasets into 
 # the same structure as the regression of a DataFrame, but for now this allows main 

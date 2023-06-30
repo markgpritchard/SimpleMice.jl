@@ -29,8 +29,8 @@ Only binary and continuous variables are currently supported.
 * `m = 100`: number of regressions to perform per variable with missing data during 
     the imputation process. [To do: make this more dynamic]
 * `n = 5`: number of imputed datasets to produce.
-* `printdropped`: whether to list members of vars that are not classified into one 
-    of `binvars`, `contvars` and `noimputevars`. Default is `true` if vars is supplied 
+* `printdropped`: whether to list members of `vars` that are not classified into one 
+    of `binvars`, `contvars` and `noimputevars`. Default is `true` if `vars` is supplied 
     and `false` otherwise.
 * `verbose = true`: whether to display messages showing progress of the function.
 """
@@ -65,13 +65,29 @@ end
 
 function _mice(df, binvars, contvars, noimputevars; n = 5, verbose = true, kwargs...) 
     if verbose @info "Starting to initialize imputation process" end 
-    # count the variable types 
+    # count the variable types and the size of df to set the size of the matrix used 
+    # in the regressions
     variablecounts = VariableCount(length(binvars), length(contvars), length(noimputevars))
     tablelength = size(df, 1)
+    # variableproperties is a tuple of Dicts of details of each variable being used 
+    # in the imputation. This is not mutated during the imputation but is passed 
+    # around to guide the imputation.
     variableproperties, M = getdetails(df, binvars, contvars, noimputevars, variablecounts, tablelength)
-    vec = M[:, 1]
-    imputeddfs = [ impute!(M, vec, variableproperties, df; verbose, verbosei = i, kwargs...) 
-        for i ∈ 1:n ]
+    vec = deepcopy(M[:, 1])
+    # M and vec are respectively a matrix of independent variables and a vector of 
+    # dependent variables used in each regression. They are introduced here so that 
+    # subsequent functions can be mutating rather than creating multiple matrices 
+    # and vectors, which would require a lot of memory allocation. The values in 
+    # them at this stage are unimportant. Note that M and vec each contain "Float64" 
+    # values. Details in `variableproperties` allow these to be converted back to 
+    # their original data types. However, this currently prevents use of categorical 
+    # variables except binary variables.
+    imputeddfs = Vector{DataFrame}(undef, n)
+    Threads.@threads for i ∈ 1:n 
+        imputeddfs[i] = impute(M, vec, variableproperties, df; verbose, verbosei = i, kwargs...)  
+    end 
+   # imputeddfs = [ impute!(M, vec, variableproperties, df; verbose, verbosei = i, kwargs...) 
+   #     for i ∈ 1:n ]
     return ImputedDataFrame(df, n, imputeddfs)
 end 
 
@@ -130,7 +146,7 @@ function getdetails!(M, variabletype, df, var, vec::Vector{<:Union{T, Missing}},
     maxvalue = maximum(uniquevalues)
     minvalue = minimum(uniquevalues)
     floatnmvec = [ v == maxvalue ? 1. : .0 for v ∈ nmvec ]
-    M[:, i] = setinitialvalues(variabletype, vec, missings, nmvec, maxvalue, minvalue, floatnmvec)
+    M[:, i] = setinitialvalues(vec, missings, nmvec, maxvalue, floatnmvec)
     return VariableProperties(var, i, variabletype, T, missings, floatnmvec, maxvalue, minvalue, 0, 0)
 end 
 
@@ -138,13 +154,11 @@ function getdetails!(M, variabletype, df, var, vec::Vector{<:Union{T, Missing}},
     nmvec::Vector{T} = vec[Not(missings)]
     maxvalue = maximum(nmvec)
     minvalue = minimum(nmvec)
-    M[:, i] = setinitialvalues(variabletype, vec, missings, nmvec, maxvalue, minvalue)
+    M[:, i] = setinitialvalues(vec, missings, nmvec, maxvalue)
     return VariableProperties(var, i, variabletype, T, missings, nmvec, "", "", maxvalue, minvalue)
 end 
 
-function setinitialvalues(variabletype, vec, missings, nmvec::Vector{T}, maxvalue, 
-        minvalue, floatnmvec
-    ) where T <: AbstractString
+function setinitialvalues(vec, missings, nmvec::Vector{T}, maxvalue, floatnmvec) where T <: AbstractString
     currentvalues = zeros(length(vec))
     for i ∈ eachindex(vec)
         if i ∈ missings currentvalues[i] = Float64(sample(floatnmvec)) 
@@ -154,7 +168,7 @@ function setinitialvalues(variabletype, vec, missings, nmvec::Vector{T}, maxvalu
     return currentvalues 
 end 
 
-function setinitialvalues(variabletype, vec, missings, nmvec::Vector{T}, maxvalue, minvalue) where T <: Number
+function setinitialvalues(vec, missings, nmvec::Vector{T}, maxvalue) where T <: Number
     currentvalues = zeros(length(vec))
     for i ∈ eachindex(vec)
         if i ∈ missings currentvalues[i] = Float64(sample(nmvec)) 
@@ -188,6 +202,12 @@ end
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # Impute values 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+function impute(M, vec, variableproperties, df; kwargs...) 
+    copyM = deepcopy(M) 
+    copyvec = deepcopy(vec)
+    return impute!(copyM, copyvec, variableproperties, df; kwargs...) 
+end 
 
 function impute!(M, vec, variableproperties, df; 
         initialvaluesfunc = sample, verbose, verbosei, kwargs...
