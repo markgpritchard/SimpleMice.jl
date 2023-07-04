@@ -149,4 +149,5 @@ Key issues include:
 * Adding function to combine regression parameters when a simple mean from Rubin's rules is not appropriate.
 * Supplying a more realistic model dataset.
 * Efforts to improve speed for large datasets.
+* Allow customization of the imputation with knowledge of underlying relationships between variables.
 * Comparison of the output from this function to other packages, such as `mice.R`.
