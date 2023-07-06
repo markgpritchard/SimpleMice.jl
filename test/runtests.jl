@@ -4,7 +4,6 @@ using Test
 using DataFrames, Distributions, Random
 using GLM: @formula
 
-
 Random.seed!(1729)
 const NOMISSINGDATA = SimpleMice.testdataset()
 const MCAR1 = mcar(
@@ -30,6 +29,10 @@ const MCARde = mcar(
         @test 10 <= maximum(describe(MCAR1).nmissing[1:8]) <= 30
         @test 200 <= minimum(describe(MCAR50).nmissing[1:8]) <= 500
         @test 500 <= maximum(describe(MCAR50).nmissing[1:8]) <= 800
+        @test maximum(describe(MCARde).nmissing[1:5]) == 0
+        @test describe(MCARde).nmissing[8] == 0
+        @test 200 <= describe(MCARde).nmissing[6] <= 800
+        @test 100 <= describe(MCARde).nmissing[7] <= 700
     end # @testset "MCAR function"
 
     @testset "Imputation tests" begin
