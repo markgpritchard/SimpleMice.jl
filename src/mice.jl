@@ -23,6 +23,9 @@ Only binary and continuous variables are currently supported.
     missing data classified as `noimputevars`, integers and strings with two unique 
     non-missing values, plus all `Bool` inputs, as `binvars`, and all other numbers 
     as `contvars`.
+* `formulas = nothing`: Custom formulae to be used in imputation regressions. If 
+    used must be a `Vector{<:GLM.FormulaTerm}` of the same length as and listed in the 
+    same order as `binvars` and `contvars`.
 * `initialvaluesfunc = StatsBase.sample`: Function used to give each missing datapoint 
     a value at the start of the imputation algorithm. (Note that `sample` is used 
     for all binary [and categorical] variables regardless of this keyword argument.)
