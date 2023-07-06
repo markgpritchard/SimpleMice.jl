@@ -66,7 +66,7 @@ function mice(df, var1, vars...; kwargs...)
 end  
 
 function _mice(df, binvars, contvars, noimputevars, formulas::Nothing; verbose = true, kwargs...) 
-    # When formula is nothing (i.e. default of linear regression with respect to 
+    # When formulas is nothing (i.e. default of linear regression with respect to 
     # all other variables) can use more efficient code that does all regressions 
     # using a matrix and vector that are mutated to reduce memory allocations
     if verbose @info "Starting to initialize imputation process" end 
