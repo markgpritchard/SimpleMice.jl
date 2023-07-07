@@ -65,7 +65,16 @@ function mice(df, var1, vars...; kwargs...)
     return mice(df, [ var1, vars... ]; kwargs...)
 end  
 
-function _mice(df, binvars, contvars, noimputevars, formulas::Nothing; verbose = true, kwargs...) 
+function _mice(df, binvars, contvars, noimputevars, formulas; kwargs...) 
+    bv = symbollist(binvars)
+    cv = symbollist(contvars)
+    nv = symbollist(noimputevars)
+    return _mice(df, bv, cv, nv, formulas; kwargs...) 
+end
+
+function _mice(df, binvars::Vector{Symbol}, contvars::Vector{Symbol}, noimputevars::Vector{Symbol}, formulas::Nothing; 
+        verbose = true, kwargs...
+    ) 
     # When formulas is nothing (i.e. default of linear regression with respect to 
     # all other variables) can use more efficient code that does all regressions 
     # using a matrix and vector that are mutated to reduce memory allocations
@@ -90,7 +99,9 @@ function _mice(df, binvars, contvars, noimputevars, formulas::Nothing; verbose =
     return _mice(M, vec, variableproperties, df; verbose, kwargs...) 
 end 
 
-function _mice(df, binvars, contvars, noimputevars, formulas::Vector{<:FormulaTerm}; verbose = true, kwargs...) 
+function _mice(df, binvars::Vector{Symbol}, contvars::Vector{Symbol}, noimputevars::Vector{Symbol}, 
+        formulas::Vector{<:FormulaTerm}; verbose = true, kwargs...
+    ) 
     @assert length(formulas) == length(binvars) + length(contvars)
     if verbose @info "Starting to initialize imputation process" end 
     # count the variable types and the size of df to set the size of the matrix used 
@@ -144,11 +155,15 @@ function getdetails_tdf(df, binvars, contvars, noimputevars, variablecounts, tab
     return getdetails!(tdf, df, binvars, contvars, noimputevars, variablecounts, tablelength) 
 end
 
-function getdetails(df, binvars, contvars, noimputevars, variablecounts, tablelength) 
+function getdetails(df::DataFrame, binvars::Vector{Symbol}, contvars::Vector{Symbol}, 
+        noimputevars::Vector{Symbol}, variablecounts::VariableCount, tablelength::Int
+    ) 
     return getdetails_m(df, binvars, contvars, noimputevars, variablecounts, tablelength)  
 end
 
-function getdetails!(M_t, df, binvars, contvars, noimputevars, variablecounts, tablelength) 
+function getdetails!(M_t, df::DataFrame, binvars::Vector{Symbol}, contvars::Vector{Symbol}, 
+        noimputevars::Vector{Symbol}, variablecounts::VariableCount, tablelength::Int
+    ) 
     variableproperties = (
         binarydict   = Dict(
             [ String(var) => getdetailsbinary!(M_t, df, var, i) for (i, var) ∈ enumerate(binvars) ]
@@ -180,8 +195,8 @@ function getdetailsbincont!(M_t, df, var, i, variabletype)
     return getdetails!(M_t, variabletype, df, var, vec, missings, i)
 end 
 
-function getdetails!(M_t, variabletype, df, var, vec::Vector{<:Union{T, Missing}}, 
-        missings, i
+function getdetails!(M_t, variabletype::ImputedValueTypes, df::DataFrame, var::Symbol, 
+        vec::Vector{<:Union{T, Missing}}, missings, i
     ) where T <: AbstractString
     nmvec::Vector{T} = vec[Not(missings)]
     uniquevalues = unique(nmvec)
@@ -194,14 +209,16 @@ function getdetails!(M_t, variabletype, df, var, vec::Vector{<:Union{T, Missing}
     return getdetails!(M_t, vec, nmvec, var, i, variabletype, T, missings, floatnmvec, maxvalue, minvalue, 0, 0)
 end 
 
-function getdetails!(M_t, variabletype, df, var, vec::Vector{<:Union{T, Missing}}, missings, i) where T <: Number
+function getdetails!(M_t, variabletype::ImputedValueTypes, df::DataFrame, var::Symbol, 
+        vec::Vector{<:Union{T, Missing}}, missings, i
+    ) where T <: Number
     nmvec::Vector{T} = vec[Not(missings)]
     maxvalue = maximum(nmvec)
     minvalue = minimum(nmvec)
     return getdetails!(M_t, vec, nmvec, var, i, variabletype, T, missings, nmvec, "", "", maxvalue, minvalue)
 end 
 
-function getdetails!(M::Matrix, vec, nmvec, var, i, variabletype, T, missings, floatnmvec, 
+function getdetails!(M::Matrix, vec, nmvec, var::Symbol, i, variabletype, T, missings, floatnmvec, 
         maxvaluestring, minvaluestring, maxvaluenumber, minvaluenumber
     )
     M[:, i] = setinitialvalues(vec, missings, nmvec, maxvaluenumber, floatnmvec)
@@ -209,7 +226,7 @@ function getdetails!(M::Matrix, vec, nmvec, var, i, variabletype, T, missings, f
         maxvaluestring, minvaluestring, maxvaluenumber, minvaluenumber)
 end 
 
-function getdetails!(tdf::DataFrame, vec, nmvec, var, i, variabletype, T, missings, floatnmvec, 
+function getdetails!(tdf::DataFrame, vec, nmvec, var::Symbol, i, variabletype, T, missings, floatnmvec, 
         maxvaluestring, minvaluestring, maxvaluenumber, minvaluenumber
     )
     insertcols!(tdf, var => setinitialvalues(vec, missings, nmvec, maxvaluenumber, floatnmvec))
