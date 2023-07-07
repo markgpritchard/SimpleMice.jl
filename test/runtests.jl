@@ -25,6 +25,7 @@ const MCARde = mcar(
 @testset "SimpleMice.jl" begin
 
     @testset "MCAR function" begin 
+
         @test 3 <= minimum(describe(MCAR1).nmissing[1:8]) <= 10
         @test 10 <= maximum(describe(MCAR1).nmissing[1:8]) <= 30
         @test 200 <= minimum(describe(MCAR50).nmissing[1:8]) <= 500
@@ -33,6 +34,7 @@ const MCARde = mcar(
         @test describe(MCARde).nmissing[8] == 0
         @test 200 <= describe(MCARde).nmissing[6] <= 800
         @test 100 <= describe(MCARde).nmissing[7] <= 700
+        
     end # @testset "MCAR function"
 
     @testset "Imputation tests" begin
