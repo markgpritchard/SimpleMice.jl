@@ -1,34 +1,30 @@
 
 module SimpleMice
 
-using DataFrames, Distributions, GLM, Random, StatsBase
+#using DataFrames, Distributions, GLM, Random, StaticArrays, StatsBase
+using DataFrames, GLM, Random, StaticArrays, StatsBase
 using HypothesisTests: confint, OneSampleTTest, pvalue
-using StaticArrays: MVector
-import Base: eltype
-import DataAPI: describe
-import StatsBase: mean, std, summarystats, var
-import GLM: fit, glm, lm
+import Base: /, *, +, -
+#import DataAPI: describe
+#import StatsBase: mean, std, summarystats, var
+import StatsBase: var
+import StatsModels: TableRegressionModel
 
 include("types.jl")
-include("constants.jl")
 include("mice.jl")
-include("classifyvariables.jl")
+#include("classifyvariables.jl")
 include("basefunctions.jl")
-include("dataapifunctions.jl")
 include("statsfunctions.jl")
-include("glmfunctions.jl")
-include("extras.jl")
 include("testdataset.jl")
 
-export mice
-export AbstractImputedData, ImputedData, ImputedMissingData, ImputedNonMissingData,
-    describe, eltype, getvalues,
-    betweenimputationvar, rubinsmean, rubinssterror, rubinsvar, 
-    withinimputationsterrorsquared, withinimputationvar,
-    componentmeans, componentstats, componentvars,
-    mean, meanstats, std, summarystats, var,
-    fit, glm, lm,
-    desentinelize!, oneach,
-    mcar, mcar!
+export 
+    # types.jl
+    AbstractImputedData, ImputedData, ImputedMissingData, ImputedNonMissingData, ImputedRegressionResult,
+    # mice.jl 
+    mice, mice!,
+    # basefunctions.jl
+    /, *, +, -,
+    # statsfunctions.jl
+    imputedlm, rubinsmean, rubinsvar, var
 
 end # module SimpleMice

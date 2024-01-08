@@ -1,23 +1,35 @@
 
-# Source for these functions: 
-# https://www.ncbi.nlm.nih.gov/pmc/articles/PMC2727536/
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# Values from imputed value type 
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+getvalue(a::ImputedNonMissingData, i) = a.v 
+getvalue(a::ImputedMissingData, i) = a.v[i] 
+
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # Combinations by Rubin's rules 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
+# Source for these functions: 
+# https://www.ncbi.nlm.nih.gov/pmc/articles/PMC2727536/
+
 """
-    rubinsmean(q::Vector, n::Int)
+    rubinsmean(vec::Vector{<:ImputedData{N, T}}) where {N, T}
 
 Combines the mean from each imputed dateset and produces an overall mean according 
     to Rubin's rules.
-
-`q` is a vector of the mean from each imputed dataset and `n` is the number of imputed 
-    datasets.
-
-Note, this function does not test whether `length(q) == n`.
 """
-rubinsmean(q::Vector, n::Int) = sum(q) / n
+function rubinsmean(vec::Vector{<:ImputedData{N, T}}) where {N, T}
+    m = mean(vec)
+    t = sum([ getvalue(m, i) for i ∈ 1:N ])
+    return t / N 
+end 
+
+function var(vec::Vector{<:ImputedData{N, T}}) where {N, T}
+    result = MVector{N}( [ var([ getvalue(a, i) for a ∈ vec ]) for i ∈ 1:N ])
+    return ImputedMissingData(result)
+end
 
 """
     rubinsvar(q::Vector, u::Vector, n::Int)
@@ -29,195 +41,142 @@ Calculates a variance from multiple imputed datasets according to Rubin's rules.
 
 Note, this function does not test whether `length(q) == n`.
 """
-function rubinsvar(q::Vector, u::Vector, n::Int)
-    ubar = withinimputationvar(u, n)
-    b = betweenimputationvar(q, n)
-    v = ubar + (1 + 1 / n) * b 
-    return v 
-end 
-
-"""
-    rubinssterror(q::Vector, u::Vector, n::Int)
-
-Calculates a standard error from multiple imputed datasets according to Rubin's rules. 
-
-`q` is a vector of the mean from each imputed dataset, `u` is a vector of the standard 
-    error of each imputed dataset, and `n` is the number of imputed datasets.
-
-Note, this function does not test whether `length(q) == n`.
-"""
-function rubinssterror(q::Vector, u::Vector, n::Int)
-    ubar = withinimputationsterrorsquared(u, n)
-    b = betweenimputationvar(q, n)
-    v = ubar + (1 + 1 / n) * b 
-    return sqrt(v) 
-end 
-
-"""
-    withinimputationvar(u::Vector, n::Int) 
-
-Calculates a mean within-imputation variance from multiple imputed datasets. 
-
-`u` is a vector of the variance of each imputed dataset and `n` is the number of 
-    imputed datasets.
-
-Note, this function does not test whether `length(u) == n`.
-"""
-withinimputationvar(u::Vector, n::Int) = sum(u) / n 
-
-"""
-    betweenimputationvar(q::Vector, u::Vector, n::Int)
-
-Calculates between-imputation variance from multiple imputed datasets. 
-
-`q` is a vector of the mean from each imputed dataset and `n` is the number of imputed 
-    datasets.
-
-Note, this function does not test whether `length(q) == n`.
-"""
-function betweenimputationvar(q::Vector, n::Int)
-    qbar = rubinsmean(q, n)
-    qsquarediff = @. (q - qbar)^2
-    b = sum(qsquarediff) / (n - 1)
-    return b 
-end 
-
-"""
-    withinimputationsterrorsquared(u::Vector, n::Int)
-
-Calculates a mean within-imputation standard error squared from multiple imputed 
-    datasets. 
-
-`u` is a vector of the standard error of each imputed dataset and `n` is the number 
-    of imputed datasets.
-
-Note, this function does not test whether `length(u) == n`.
-"""
-withinimputationsterrorsquared(u::Vector, n::Int) = sum([ v^2 for v ∈ u ]) / n 
+function rubinsvar(vec::Vector{<:ImputedData{N, T}}) where {N, T}
+    m = mean(vec)
+    rm = rubinsmean(vec)
+    vr = var(vec)
+    vw = sum([ getvalue(vr, i) for i ∈ 1:N ]) / N
+    vb = sum([ (getvalue(m, i) - rm)^2 for i ∈ 1:N ]) / (N - 1)
+    vtotal = vw + vb * (1 + 1 / N) 
+    return vtotal 
+end
 
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-# Functions used in calculating combined statistics
+# GLM 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-"""
-    componentmeans(d::ImputedVector)
+function imputedlm(formula, data; kwargs...)
+    data_n = size(data, 1)
+    # find N 
+    N = _findN(formula, data)
+    rawresults = rawimputedlm(formula, data, N; kwargs...)
+    cn = coefnames(rawresults[1])
+    allcoefs, allsterrors = imputedlmresultmatrix(rawresults, length(cn), N)
+    coefs = [ mean(allcoefs[i]) for i ∈ eachindex(cn) ]
+    vtotals = imputedlmrubinsvar(coefs, allcoefs, allsterrors, length(cn), N)
+    t, p, ci = imputedlmttests(coefs, vtotals, data_n) 
+    lmdf = imputedlmdf(cn, coefs, vtotals, t, p, ci)
+    println(lmdf)
+    return ImputedRegressionResult(cn, allcoefs, allsterrors, coefs, vtotals, t, p, ci, lmdf)
+end
 
-Produces a `Vector` of the mean value of each imputed vector. 
-"""
-componentmeans(d::ImputedVector) = componentstats(mean, d)
+function _findN(formula, data)
+    N = _findN(getproperty(data, Symbol(formula.lhs)))
+    return _findN(N, formula, data, 1)
+end
 
-"""
-    componentvars(d::ImputedVector)
+_findN(v::Vector{<:Number}) = nothing
 
-Produces a `Vector` of the variance of each imputed vector. 
-"""
-componentvars(d::ImputedVector) = componentstats(var, d)
+_findN(v::Vector{<:ImputedData{N, T}}) where {N, T} = N
 
-""" 
-    componentstats(stat, d::ImputedVector[, <additional arguments>])
+_findN(N::Int, formula, data, i) = N
 
-Produces a `Vector` of the statistic `stat` of each imputed vector.
+function _findN(N::Nothing, formula, data, i)
+    x = formula.rhs[i]
+    if isa(x, ConstantTerm) 
+        return _findN(nothing, formula, data, i + 1)
+    else 
+        N = _findN(getproperty(data, Symbol(x)))
+        return _findN(N, formula, data, i + 1)
+    end
+end
 
-`additional arguments` are passed to the function `stat`.
-"""
-componentstats(stat, d::ImputedVector) = [ stat(d.imputedvalues[i]) for i ∈ 1:d.numberimputed ]
+function rawimputedlm(formula, data, N; kwargs...)
+    # Create a temp DataFrame 
+    tdf = lmtempdf(formula, data)
+    # Create a vector to store the results  
+    rawresults = Vector{TableRegressionModel}(undef, N)
+    # Run the first regression 
+    rawresults[1] = lm(formula, tdf; kwargs...)
+    # Repeat for all other imputed datasets
+    for i ∈ 2:N 
+        lmtempdf!(tdf, formula, data, i)
+        rawresults[i] = lm(formula, tdf; kwargs...)
+    end 
+    return rawresults
+end
 
-function componentstats(stat, d::ImputedVector, args...)
-    return [ stat(d.imputedvalues[i], args...) for i ∈ 1:d.numberimputed ]
-end 
+function lmtempdf(formula, data, i = 1)
+    tdf = DataFrame()
+    insertcols!(tdf, Symbol(formula.lhs) => tempdfcol(data, Symbol(formula.lhs), i))
+    for x ∈ formula.rhs
+        isa(x, ConstantTerm) && continue
+        insertcols!(tdf, Symbol(x) => tempdfcol(data, Symbol(x), i))
+    end
+    return tdf
+end
 
-"""
-    meanstats(stat, d::ImputedVector[, <additional arguments>])
+tempdfcol(data, v, i) = tempdfcol(getproperty(data, v), i)
 
-Calculate the mean of the statistic `stat` calculated from each imputed dataset.
+tempdfcol(v::Vector{<:Real}, i) = v 
 
-`additional arguments` are passed to the function `stat`.
-"""
-function meanstats(stat, d::ImputedVector)
-    cs = componentstats(stat, d)
-    return rubinsmean(cs, d.numberimputed)
-end 
+tempdfcol(v::Vector{<:ImputedData}, i) = [ getvalue(x, i) for x ∈ v ]
 
-function meanstats(stat, d::ImputedVector, args...)
-    cs = componentstats(stat, d, args...)
-    return rubinsmean(cs, d.numberimputed)
-end 
+function lmtempdf!(tdf, formula, data, i)
+    tempdfcol!(tdf, Symbol(formula.lhs), data, i)
+    for x ∈ formula.rhs
+        isa(x, ConstantTerm) && continue
+        tempdfcol!(tdf, Symbol(x), data, i)
+    end
+end
 
-# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-# Versions of imported functions applied to imputed datasets
-# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+tempdfcol!(tdf, v, data::DataFrame, i) = tempdfcol!(tdf, v, getproperty(data, v), i)
 
-"""
-    mean(d::ImputedVector)
+tempdfcol!(tdf, v, vals::Vector{<:Real}, i) = nothing
 
-Calculate the mean from multiple imputed datasets and combine them according to Rubin's 
-    rules.
-"""
-mean(d::ImputedVector) = meanstats(mean, d)
+function tempdfcol!(tdf, v, vals::Vector{<:ImputedData}, i) 
+    for j ∈ axes(tdf, 1) getproperty(tdf, v)[j] = getvalue(vals[j], i) end
+end
 
-"""
-    var(d::ImputedVector)
+function imputedlmresultmatrix(rawresults, ℓ, N)
+    allcoefs = MArray{Tuple{ℓ, N}, Float64}(undef)
+    allsterrors = MArray{Tuple{ℓ, N}, Float64}(undef)
+    for i ∈ 1:N 
+        df = DataFrame(coeftable(rawresults[i]))
+        allcoefs[:, i] = getproperty(df, Symbol("Coef."))
+        allsterrors[:, i] = getproperty(df, Symbol("Std. Error"))
+    end 
+    return ( allcoefs, allsterrors )
+end
 
-Calculate the variance from multiple imputed datasets according to Rubin's rules.
-"""
-function var(d::ImputedVector)
-    cm = componentmeans(d)
-    cv = componentvars(d)
-    return rubinsvar(cm, cv, d.numberimputed)
-end 
+function imputedlmrubinsvar(coefs, allcoefs, allsterrors, ℓ, N)
+    vw = [ mean(allsterrors[i]) for i ∈ 1:ℓ ]
+    vb = zeros(ℓ)
+    for j ∈ 1:ℓ
+        vb[j] = sum([ (allcoefs[j, i] - coefs[j])^2 for i ∈ 1:N ]) / (N - 1)
+    end
+    return vw + vb * (1 + 1 / N) 
+end
 
-"""
-    std(d::ImputedVector)
+function imputedlmttests(coefs, vtotals, data_n) 
+    ttests = [ OneSampleTTest(coefs[i], vtotals[i] * sqrt(data_n), data_n) for i ∈ eachindex(coefs) ]
+    t = [ x.t for x ∈ ttests ]
+    p = [ pvalue(x) for x ∈ ttests ]
+    ci = [ confint(x) for x ∈ ttests ]
+    return ( t, p, ci )
+end
 
-Calculate the standard deviation from multiple imputed datasets as `sqrt(var(d))`. 
-"""
-std(d::ImputedVector) = sqrt(var(d))
+imputedlmdf(cn, coefs, vtotals, t, p, ci) = DataFrame(
+    Symbol("") => cn,
+    Symbol("Coef.") => coefs,
+    Symbol("Std. Error") => vtotals,
+    :t => t,
+    Symbol("Pr(>|t|)") => p, 
+    Symbol("Lower 95%") => [ c[1] for c ∈ ci ],
+    Symbol("Upper 95%") => [ c[2] for c ∈ ci ]
+)
 
-
-# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-# Summary statistics 
-# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-function summarystats(d::ImputedVector{T}) where T <: Number
-    return StatsBase.SummaryStats(
-        mean(d),
-        meanstats(minimum, d), # min
-        meanstats(quantile, d, .25), # q25
-        meanstats(median, d), # median 
-        meanstats(quantile, d, .75), # q75 
-        meanstats(maximum, d), # max 
-        length(d.imputedvalues[1]),
-        sum(ismissing.(d.imputedvalues[1] .== 1))
-    )
-end 
-
-tablesummarystats(d::ImputedVector, name::String) = tablesummarystats(d, Symbol(name))
-
-function tablesummarystats(d::ImputedVector{T}, name::Symbol) where T <: AbstractString
-    elt = eltype(d)
-    return ( variable = name, mean = nothing, min = minimum(d.imputedvalues[1]), 
-        median = nothing, max = maximum(d.imputedvalues[1]), 
-        nmissing = sum(ismissing.(d.imputedvalues[1] .== 1)), eltype = elt )
-end 
-
-function tablesummarystats(d::ImputedVector{T}, name::Symbol) where T <: Number
-    stats = summarystats(d) 
-    elt = eltype(d)
-    return ( variable = name, mean = stats.mean, min = stats.min, 
-        median = stats.median, max = stats.max, nmissing = stats.nmiss, eltype = elt )
-end 
-
-function tablesummarystats(d::ImputedVector{T}, name::Symbol) where T <: Union{<:AbstractString, Missing}
-    elt = eltype(d)
-    return ( variable = name, mean = nothing, min = minimum(skipmissing(d.originalvector)), 
-        median = nothing, max = maximum(skipmissing(d.originalvector)), 
-        nmissing = sum(ismissing.(d.originalvector .== 1)), eltype = elt )
-end 
-
-function tablesummarystats(d::ImputedVector{T}, name::Symbol) where T <: Union{<:Number, Missing}
-    stats = summarystats(d.originalvector) 
-    elt = eltype(d)
-    return ( variable = name, mean = stats.mean, min = stats.min, 
-        median = stats.median, max = stats.max, nmissing = stats.nmiss, eltype = elt )
-end 
+#=
+imputedvalue!(dfvector, dfvalue::ImputedMissingData, newvalue, i, j) = dfvector[j].v[i] = newvalue
+=#
