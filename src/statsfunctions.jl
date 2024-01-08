@@ -176,7 +176,3 @@ imputedlmdf(cn, coefs, vtotals, t, p, ci) = DataFrame(
     Symbol("Lower 95%") => [ c[1] for c ∈ ci ],
     Symbol("Upper 95%") => [ c[2] for c ∈ ci ]
 )
-
-#=
-imputedvalue!(dfvector, dfvalue::ImputedMissingData, newvalue, i, j) = dfvector[j].v[i] = newvalue
-=#

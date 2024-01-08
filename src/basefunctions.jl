@@ -39,3 +39,5 @@ for f ∈ [ :/, :*, :+, :- ]
         end
     end 
 end 
+
+==(a::ImputedMissingData{N, T}, b::ImputedMissingData{N, T}) where {N, T} = a.v == b.v

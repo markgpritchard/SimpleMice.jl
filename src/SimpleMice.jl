@@ -1,29 +1,25 @@
 
 module SimpleMice
 
-#using DataFrames, Distributions, GLM, Random, StaticArrays, StatsBase
 using DataFrames, GLM, Random, StaticArrays, StatsBase
 using HypothesisTests: confint, OneSampleTTest, pvalue
-import Base: /, *, +, -
-#import DataAPI: describe
-#import StatsBase: mean, std, summarystats, var
+import Base: ==, /, *, +, -
 import StatsBase: var
 import StatsModels: TableRegressionModel
 
 include("types.jl")
+include("basefunctions.jl")
 include("mice.jl")
 #include("classifyvariables.jl")
-include("basefunctions.jl")
 include("statsfunctions.jl")
-include("testdataset.jl")
 
 export 
     # types.jl
     AbstractImputedData, ImputedData, ImputedMissingData, ImputedNonMissingData, ImputedRegressionResult,
+    # basefunctions.jl
+    ==, /, *, +, -,
     # mice.jl 
     mice, mice!,
-    # basefunctions.jl
-    /, *, +, -,
     # statsfunctions.jl
     imputedlm, rubinsmean, rubinsvar, var
 

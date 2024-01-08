@@ -1,14 +1,16 @@
 
-function mice(df, vars, N, M) 
+function mice(df, args...) 
     newdf = deepcopy(df)
     mice!(newdf, vars, N, M)
     return newdf
 end 
 
-function mice!(df, vars, N, M)
+function mice!(df, vars, N::Int, M::Int)
     selectinitialvalues!(df, vars, N)
     imputevalues!(df, vars, N, M)
 end
+
+mice!(df, N::Int, M::Int) = mice!(df, Symbol.(names(df)), N::Int, M::Int)
 
 function selectinitialvalues!(df::DataFrame, vars, N)
     for v ∈ vars 
