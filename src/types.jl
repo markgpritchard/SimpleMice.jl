@@ -1,4 +1,24 @@
 
+abstract type AbstractImputedData end 
+
+struct ImputedNonMissingData{N, T} <: AbstractImputedData 
+    v   :: T
+end
+
+struct ImputedMissingData{N, T} <: AbstractImputedData
+    v   :: MVector{N, T}
+end
+
+ImputedData{N, T} = Union{ImputedNonMissingData{N, T}, ImputedMissingData{N, T}}
+
+getvalue(a::ImputedNonMissingData, i) = a.v 
+getvalue(a::ImputedMissingData, i) = a.v[i] 
+
+#ImputedNonMissingData(v::T, N::Int) where T = ImputedNonMissingData{N, T}(v)
+#ImputedMissingData(v::MVector{N, T}, N) where {N, T} = ImputedMissingData{N, T}(v)
+
+#=
+
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # Types for temporary dataset while imputing values
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -40,7 +60,6 @@ VariableCount(b, c, n) = VariableCount(b, c, n, b + c + n)
 # Output type for imputed values
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-abstract type AbstractImputedData end 
 
 struct ImputedDataFrame <: AbstractImputedData
     originaldf          :: DataFrame 
@@ -78,3 +97,4 @@ struct ImputedRegressionResult
     pvalue              :: Vector{Float64}
     confint             :: Vector{Tuple{Float64, Float64}}
 end
+=#

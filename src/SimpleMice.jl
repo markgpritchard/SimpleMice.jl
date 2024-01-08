@@ -3,6 +3,7 @@ module SimpleMice
 
 using DataFrames, Distributions, GLM, Random, StatsBase
 using HypothesisTests: confint, OneSampleTTest, pvalue
+using StaticArrays: MVector
 import Base: eltype
 import DataAPI: describe
 import StatsBase: mean, std, summarystats, var
@@ -20,7 +21,8 @@ include("extras.jl")
 include("testdataset.jl")
 
 export mice
-export describe, eltype, getvalues,
+export AbstractImputedData, ImputedData, ImputedMissingData, ImputedNonMissingData,
+    describe, eltype, getvalues,
     betweenimputationvar, rubinsmean, rubinssterror, rubinsvar, 
     withinimputationsterrorsquared, withinimputationvar,
     componentmeans, componentstats, componentvars,
