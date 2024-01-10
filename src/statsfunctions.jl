@@ -5,6 +5,7 @@
 
 getvalue(a::ImputedNonMissingData, i) = a.v 
 getvalue(a::ImputedMissingData, i) = a.v[i] 
+getvalue(a::ImputedMissingBoolData, i) = a.v[i] ? a.truev : a.falsev
 
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~

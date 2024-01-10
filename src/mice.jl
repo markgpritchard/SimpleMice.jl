@@ -1,22 +1,26 @@
 
-function mice(df, args...) 
+function mice(df, args...; kwargs...) 
     newdf = deepcopy(df)
     mice!(newdf, vars, N, M)
     return newdf
 end 
 
-function mice!(df, vars, N::Int, M::Int)
-    selectinitialvalues!(df, vars, N)
-    imputevalues!(df, vars, N, M)
+function mice!(df, vars, N::Int, M::Int; imputevars = vars, imputeboolvars = Symbol[ ])
+    # find all vars that are in imputevars or imputeboolvars
+    iv = vars[findall(x -> x ∈ imputevars || x ∈ imputeboolvars, vars)]
+    selectinitialvalues!(df, N; imputeboolvars, iv)
+    imputevalues!(df, vars, N, M; imputevars = iv, imputeboolvars, iv)
 end
 
-mice!(df, N::Int, M::Int) = mice!(df, Symbol.(names(df)), N::Int, M::Int)
+mice!(df, N::Int, M::Int; kwargs...) = mice!(df, Symbol.(names(df)), N::Int, M::Int; kwargs...)
 
-function selectinitialvalues!(df::DataFrame, vars, N)
-    for v ∈ vars 
+function selectinitialvalues!(df::DataFrame, N; imputeboolvars, iv)
+    for v ∈ iv 
         originalv = getproperty(df, v)
         select!(df, Not(v))
-        insertcols!(df, v => selectinitialvalues(originalv, N))
+        if v ∈ imputeboolvars insertcols!(df, v => selectinitialvaluesbool(originalv, N))
+        else                  insertcols!(df, v => selectinitialvalues(originalv, N))
+        end
     end
 end
 
@@ -28,7 +32,23 @@ end
 
 selectinitialvalue(nonmissingv, N) = ImputedMissingData(MVector{N}([ sample(nonmissingv) for _ ∈ 1:N ]))
 
-function imputevalues!(df::DataFrame, vars, N, M)
+function selectinitialvaluesbool(v::Vector{<:Union{Missing, T}}, N) where T 
+    nonmissingv = collect(skipmissing(v))
+    truev = maximum(nonmissingv)
+    falsev = minimum(nonmissingv)
+    return ImputedData{N, T}[ 
+        ismissing(a) ? selectinitialvaluebool(nonmissingv, N, truev, falsev) : ImputedNonMissingData{N, T}(a) 
+        for a ∈ v ]
+end
+
+function selectinitialvaluebool(nonmissingv, N, truev, falsev) 
+    initialvs = MVector{N}([ sample(nonmissingv) for _ ∈ 1:N ])
+    initialbools = MVector{N}([ v == truev for v ∈ initialvs ])
+    initialprs = MVector{N}([ v ? 1. : .0 for v ∈ initialbools ])
+    return ImputedMissingBoolData(initialbools, initialprs, truev, falsev)
+end
+
+function imputevalues!(df::DataFrame, vars, N, M; imputeboolvars, iv)
     for i ∈ 1:N 
         for _ ∈ 1:M
             for v ∈ vars 

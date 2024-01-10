@@ -15,7 +15,8 @@ include("statsfunctions.jl")
 
 export 
     # types.jl
-    AbstractImputedData, ImputedData, ImputedMissingData, ImputedNonMissingData, ImputedRegressionResult,
+    AbstractImputedData, ImputedData, ImputedMissingBoolData, ImputedMissingData, 
+    ImputedNonMissingData, ImputedRegressionResult,
     # basefunctions.jl
     ==, /, *, +, -,
     # mice.jl 
