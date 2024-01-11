@@ -113,14 +113,14 @@ function imputevalues!(data::DataFrame, vars, N, M; binaryvars, continuousvars, 
                     try
                         newvalues = predict(lm(fla, tdf))
                     catch e 
-                        @warn "lm error $eon value $i and iteration $j of $v"
+                        @warn "lm error $e on value $i and iteration $j of $v"
                         continue
                     end
                 elseif v ∈ orderedcatvars || v ∈ unorderedcatvars
                     try
                         newvalues = predict(fit(EconometricModel, fla, tdf))
                     catch e 
-                        @warn "EconometricModel fit error $eon value $i and iteration $j of $v"
+                        @warn "EconometricModel fit error $e on value $i and iteration $j of $v"
                         continue
                     end
                 else 
