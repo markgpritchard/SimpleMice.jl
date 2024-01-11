@@ -35,7 +35,16 @@ function selectinitialvalue!(df, func, v, N)
     insertcols!(df, v => func(originalv, N))
 end
 
-function selectinitialbinvals(originalv::Vector{<:Union{Missing, T}}, N) where T
+function selectinitialbinvals(originalv::Vector{<:Union{Missing, T}}, N) where T <: AbstractString 
+    @info "Currently need to convert any binary variables that are strings into numbers"
+    # otherwise the glm function uses a Matrix of width 1 rather than a Vector for 
+    # the dependent variable, leading to an error
+    mv = maximum(skipmissing(originalv))
+    numv = Union{Missing, Int}[ selectinitialbinvalnum(a, mv) for a ∈ originalv]
+    return selectinitialbinvals(numv, N)
+end
+
+function selectinitialbinvals(originalv::Vector{<:Union{Missing, T}}, N) where T <: Number
     nonmissingv = collect(skipmissing(originalv))
     truev = maximum(nonmissingv)
     falsev = minimum(nonmissingv)
@@ -43,6 +52,9 @@ function selectinitialbinvals(originalv::Vector{<:Union{Missing, T}}, N) where T
         ismissing(a) ? selectinitialbinval(nonmissingv, N, truev, falsev) : ImputedNonMissingData{N, T}(a) 
         for a ∈ originalv ]
 end
+
+selectinitialbinvalnum(a::Missing, mv) = missing 
+selectinitialbinvalnum(a, mv) = Int(a == mv)
 
 function selectinitialbinval(nonmissingv, N, truev, falsev) 
     initialvs = MVector{N}([ sample(nonmissingv) for _ ∈ 1:N ])

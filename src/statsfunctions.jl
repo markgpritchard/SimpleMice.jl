@@ -103,14 +103,14 @@ end
 
 function rawimputedlm(formula, data, N; kwargs...)
     # Create a temp DataFrame 
-    tdf = createimputeddf(formula, data)
+    tdf = createimputeddf(data, formula)
     # Create a vector to store the results  
     rawresults = Vector{TableRegressionModel}(undef, N)
     # Run the first regression 
     rawresults[1] = lm(formula, tdf; kwargs...)
     # Repeat for all other imputed datasets
     for i ∈ 2:N 
-        mutateimputeddf!(tdf, formula, data, i)
+        mutateimputeddf!(tdf, data, formula, i)
         rawresults[i] = lm(formula, tdf; kwargs...)
     end 
     return rawresults
@@ -152,7 +152,9 @@ function tempdfcol(data, v, i; orderedcatvars = Symbol[ ], unorderedcatvars = Sy
     return newv
 end
 
-tempdfcol(v::Vector{<:Real}, i) = v 
+tempdfcol(v::Vector{<:Number}, i) = v 
+
+tempdfcol(v::Vector{<:AbstractString}, i) = v 
 
 tempdfcol(v::Vector{<:ImputedData{N, T}}, i) where {N, T} = T[ getvalue(x, i) for x ∈ v ]
 
@@ -160,7 +162,7 @@ tempdfcol(v::CategoricalVector{<:ImputedData{N, T}}, i) where {N, T} = T[ getval
 
 function mutateimputeddf!(tdf, data, formula::FormulaTerm, i)
     cols = formulacolumns(formula)
-    mutateimputeddf!(tdf, data, columns, i)
+    mutateimputeddf!(tdf, data, cols, i)
 end
 
 function mutateimputeddf!(tdf, data, columns::Vector{<:Symbol}, i)
