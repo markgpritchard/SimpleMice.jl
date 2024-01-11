@@ -5,7 +5,9 @@
 
 getvalue(a::ImputedNonMissingData, i) = a.v 
 getvalue(a::ImputedMissingData, i) = a.v[i] 
-getvalue(a::ImputedMissingBoolData, i) = a.v[i] ? a.truev : a.falsev
+#getvalue(a::ImputedMissingContData, i) = a.v[i] 
+#getvalue(a::ImputedMissingOrderedData, i) = a.v[i] 
+#getvalue(a::ImputedMissingUnOrderedData, i) = a.categories[a.v[i]]
 
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -54,8 +56,14 @@ end
 
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-# GLM 
+# Regressions  
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+#=
+function imputedfit(model, formula, data, distr; kwargs...)
+
+end
+=#
 
 function imputedlm(formula, data; kwargs...)
     data_n = size(data, 1)
@@ -95,41 +103,68 @@ end
 
 function rawimputedlm(formula, data, N; kwargs...)
     # Create a temp DataFrame 
-    tdf = lmtempdf(formula, data)
+    tdf = createimputeddf(formula, data)
     # Create a vector to store the results  
     rawresults = Vector{TableRegressionModel}(undef, N)
     # Run the first regression 
     rawresults[1] = lm(formula, tdf; kwargs...)
     # Repeat for all other imputed datasets
     for i ∈ 2:N 
-        lmtempdf!(tdf, formula, data, i)
+        mutateimputeddf!(tdf, formula, data, i)
         rawresults[i] = lm(formula, tdf; kwargs...)
     end 
     return rawresults
 end
 
-function lmtempdf(formula, data, i = 1)
+function formulacolumns(formula)
+    lhs_symbol = Symbol(formula.lhs) 
+    rhs_index = findall(x -> isa(x, Term), formula.rhs)
+    rhs_symbol = Symbol.(formula.rhs[rhs_index])
+    cols = [ lhs_symbol; [ x for x ∈ rhs_symbol ]]
+    return cols
+end
+
+function createimputeddf(data, formula::FormulaTerm, i = 1; kwargs...)
+    cols = formulacolumns(formula)
+    return createimputeddf(data, cols, i; kwargs...) 
+end
+
+function createimputeddf(data, columns::Vector{<:Symbol}, i = 1; kwargs...)
     tdf = DataFrame()
-    insertcols!(tdf, Symbol(formula.lhs) => tempdfcol(data, Symbol(formula.lhs), i))
-    for x ∈ formula.rhs
-        isa(x, ConstantTerm) && continue
-        insertcols!(tdf, Symbol(x) => tempdfcol(data, Symbol(x), i))
-    end
+    for x ∈ columns insertcols!(tdf, x => tempdfcol(data, x, i; kwargs...)) end
     return tdf
 end
 
-tempdfcol(data, v, i) = tempdfcol(getproperty(data, v), i)
+function tempdfcol(data, v, i; orderedcatvars = Symbol[ ], unorderedcatvars = Symbol[ ]) 
+    newv = tempdfcol(getproperty(data, v), i)
+    if v ∈ orderedcatvars || v ∈ unorderedcatvars 
+        oldv = getproperty(data, v) 
+        levelsknown = false 
+        k = 1
+        while !levelsknown 
+            if isa(oldv[k], ImputedMissingData) levelsknown = true 
+            else                                k += 1
+            end 
+        end
+        levels = oldv[k].levels
+        newv = categorical(newv; levels, ordered = v ∈ orderedcatvars)
+    end
+    return newv
+end
 
 tempdfcol(v::Vector{<:Real}, i) = v 
 
-tempdfcol(v::Vector{<:ImputedData}, i) = [ getvalue(x, i) for x ∈ v ]
+tempdfcol(v::Vector{<:ImputedData{N, T}}, i) where {N, T} = T[ getvalue(x, i) for x ∈ v ]
 
-function lmtempdf!(tdf, formula, data, i)
-    tempdfcol!(tdf, Symbol(formula.lhs), data, i)
-    for x ∈ formula.rhs
-        isa(x, ConstantTerm) && continue
-        tempdfcol!(tdf, Symbol(x), data, i)
-    end
+tempdfcol(v::CategoricalVector{<:ImputedData{N, T}}, i) where {N, T} = T[ getvalue(x, i) for x ∈ v ]
+
+function mutateimputeddf!(tdf, data, formula::FormulaTerm, i)
+    cols = formulacolumns(formula)
+    mutateimputeddf!(tdf, data, columns, i)
+end
+
+function mutateimputeddf!(tdf, data, columns::Vector{<:Symbol}, i)
+    for x ∈ columns tempdfcol!(tdf, x, data, i) end
 end
 
 tempdfcol!(tdf, v, data::DataFrame, i) = tempdfcol!(tdf, v, getproperty(data, v), i)
