@@ -289,17 +289,28 @@ end
     )
     dfa = DataFrame(
         a = [ 1.0, 2.0, 3.0, 4.0 ], 
-        b = [0.5, 5.0, MiceValue(2, [ 0.9859979256186087, 3.441250555637871 ]), 4.0], 
+        b = [0.5, 5.0, MiceValue(2, [ 2.8, 4.1499999999999995 ]), 4.0], 
         c = [2.0, MiceValue(2, [ 2.0, 2.0 ]), 10.9, 12.0]
     )
     df2 = deepcopy(df)
     updatemicevalues!(df2, :b, :a, 2)
     @test df2 == dfa    
     df3 = deepcopy(df)
-    updatemicevalues!(df3, "b", [ "a", "c" ], 2)
+    updatemicevalues!(df3, "b", "a", 2)
     @test df3 == dfa
     df4 = deepcopy(df)
-    updatemicevalues!(df4, 2, [ 1, 3 ], 2)
+    updatemicevalues!(df4, 2, 1, 2)
     @test df4 == dfa
+end
+@testset "Identify and count those that were previously missing" begin
+    @test wasmissing(MiceValue(2, [ 2.0, 2.0 ]))
+    @test !wasmissing(0)
+    @test wasmissing(missing; warn=false)
+    a = [ 0.0, 1.0, missing, 2.0, missing ]
+    @test sum([ ismissing(ai) for ai ∈ a ]) == 2
+    @test sum([ wasmissing(ai; warn=false) for ai ∈ a ]) == 2
+    b = initializemice(5, a)
+    @test sum([ ismissing(bi) for bi ∈ b ]) == 0
+    @test sum([ wasmissing(bi; warn=false) for bi ∈ b ]) == 2
 end
 end  # @testset "SimpleMice.jl"

@@ -7,10 +7,11 @@ import Base: ^, /, *, +, -, sin, cos, tan, log, exp, getindex, isapprox, iterate
 export MiceValue
 export ^, /, *, +, -, sin, cos, tan, log, exp, getindex, isapprox, iterate, setindex!
 export initializemice, initializemice!, micevalues, nonemissing, updatemicevalues!
+export wasmissing
 
-abstract type AbstractMiceValue end 
+abstract type AbstractMiceValue{N} end 
 
-@auto_hash_equals struct MiceValue{N, T} <: AbstractMiceValue 
+@auto_hash_equals struct MiceValue{N, T} <: AbstractMiceValue{N} 
     x       :: MVector{N, T} 
 end
 
@@ -39,10 +40,12 @@ for f ∈ [ :^, :/, :*, :+, :- ]
             v = @. $f(a.x, b.x)
             return MiceValue(v)
         end
+
         function $f(a::AbstractMiceValue, b::Number)
             v = @. $f(a.x, b)
             return MiceValue(v)
         end
+        
         function $f(a::Number, b::AbstractMiceValue)
             v = @. $f(a, b.x)
             return MiceValue(v)
@@ -60,6 +63,23 @@ for f ∈ [ :sin, :cos, :tan, :log, :exp ]
 end
 
 nonemissing(x::AbstractVector) = sum([ ismissing(xi) for xi ∈ x ]) == 0
+
+_warntime::Float64 = 1.74e9
+
+wasmissing(::AbstractMiceValue; kwargs...) = true
+
+function wasmissing(::Missing; warn=true)
+    if warn && time() - _warntime > 10 
+        @warn """
+        `wasmissing` called on missing value. Returns `true`. 
+        This warning is shown at most once every 10 seconds.
+        """
+        global _warntime = time() 
+    end 
+    return true 
+end 
+
+wasmissing(::Any; kwargs...) = false
 
 function initializemice(N::Integer, x::AbstractVector)
     return initializemice(Random.default_rng(), N, x)
@@ -104,7 +124,9 @@ function initializemice!(rng::Random.AbstractRNG, N::Integer, df::DataFrame)
     end
 end
 
-function initializemice!(rng::Random.AbstractRNG, N::Integer, df::DataFrame, i::AbstractVector)
+function initializemice!(
+    rng::Random.AbstractRNG, N::Integer, df::DataFrame, i::AbstractVector
+)
     for ix ∈ i 
         initializemice!(rng, N, df, ix)
     end
@@ -178,8 +200,17 @@ _micevalue(a::Number, ::Integer) = a
 function _linearfit(df, x, y, i)
     xmat = micevalues(df, x, i)
     yvec = micevalues(df, y, i)
-    return fit(LinearModel, xmat, yvec)
+    return _linearfit(df, xmat, yvec)
 end
+
+function _linearfit(df, xvec::Vector{S}, yvec::Vector) where S
+    m = length(xvec)
+    xmat = Matrix{S}(undef, m, 1)
+    xmat[:, 1] .= xvec
+    return _linearfit(df, xmat, yvec)
+end
+
+_linearfit(df, xmat::Matrix, yvec::Vector) = fit(LinearModel, xmat, yvec)
 
 function updatemicevalues!(
     df, y::S, x::T, N
@@ -209,13 +240,17 @@ function __updatemicevalues!(df, y, predictions, i)
     end
 end
 
-function __updatemicevalues!(df, y::S, predictions, i, j) where S <: Union{<:AbstractString, Symbol} 
+function __updatemicevalues!(
+    df, y::S, predictions, i, j
+) where S <: Union{<:AbstractString, Symbol} 
     ___updatemicevalues!(df, y, getproperty(df, y)[j], predictions, i, j)
 end
 
 ___updatemicevalues!(::Any, ::Any, ::Number, ::Any, ::Any, ::Any) = nothing
 
-function ___updatemicevalues!(df, y::S, existingvalue::AbstractMiceValue, predictions, i, j) where S <: Union{<:AbstractString, Symbol} 
+function ___updatemicevalues!(
+    df, y::S, existingvalue::AbstractMiceValue, predictions, i, j
+) where S <: Union{<:AbstractString, Symbol} 
     getproperty(df, y)[j][i] = predictions[j]
 end
 
