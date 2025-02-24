@@ -26,15 +26,30 @@ end
     # if nothing missing, returns same type as is provided 
     @test initializemice(5, ones(Int, 1)) isa Vector{Int64} 
     # values of missing data populated with other values from the vector 
-    @test initializemice(5, [ 1, missing ]) == [ 1, MiceValue(5, ones(Int, 5)) ]
+    #@test initializemice(5, [ 1, missing ]) == [ 1, MiceValue(5, ones(Float64, 5)) ]
+    @test initializemice(5, [ 1, missing ]) == MiceVector{5, Float64, Int}(
+        [ 1, MiceValue(5, ones(Float64, 5)) ]
+    )
     # provides correct number of imputed values 
-    @test initializemice(4, [ 1, missing ]) == [ 1, MiceValue(4, ones(Int, 4)) ]
+    #@test initializemice(4, [ 1, missing ]) == [ 1, MiceValue(4, ones(Int, 4)) ]
+    @test initializemice(4, [ 1, missing ]) == MiceVector{4, Float64, Int}(
+        [ 1, MiceValue(4, ones(Float64, 4)) ]
+    )
     # imputed values of correct type 
-    @test initializemice(5, [ Float64(1), missing ]) == [ 1, MiceValue(5, ones(Float64, 5)) ]
+    #@test initializemice(5, [ Float64(1), missing ]) == [ 1, MiceValue(5, ones(Float64, 5)) ]
+    @test initializemice(5, [ Float64(1), missing ]) == MiceVector{5, Float64, Float64}(
+        [ Float64(1), MiceValue(5, ones(Float64, 5)) ]
+    )
     # non-missing values are not changed 
-    @test initializemice(5, [ 2, missing ]) == [ 2, MiceValue(5, 2 .* ones(Int, 5)) ]
+    #@test initializemice(5, [ 2, missing ]) == [ 2, MiceValue(5, 2 .* ones(Int, 5)) ]
+    @test initializemice(5, [ 2, missing ]) == MiceVector{5, Float64, Int}(
+        [ 2, MiceValue(5, 2 .* ones(Float64, 5)) ]
+    )
     # converted in whichever order 
-    @test initializemice(5, [ missing, 1 ]) == [ MiceValue(5, ones(Int, 5)), 1 ]
+    #@test initializemice(5, [ missing, 1 ]) == [ MiceValue(5, ones(Int, 5)), 1 ]
+    @test initializemice(5, [ missing, 1 ]) == MiceVector{5, Float64, Int}(
+        [ MiceValue(5, ones(Float64, 5)), 1 ]
+    )
     @testset "Test sampled values" begin
         rng = StableRNG(1)
         a = initializemice(rng, 10, [ 0, 1, 2, missing ])
@@ -263,13 +278,13 @@ end
 @testset "Update MiceValues, multiple predictive variables" begin
     df = DataFrame(
         a = [ 1.0, 2.0, 3.0, 4.0 ], 
-        b = [0.5, 5.0, MiceValue(2, [ 0.5, 5.0 ]), 4.0], 
-        c = [2.0, MiceValue(2, [ 2.0, 2.0 ]), 10.9, 12.0]
+        b = [ 0.5, 5.0, MiceValue(2, [ 0.5, 5.0 ]), 4.0 ], 
+        c = [ 2.0, MiceValue(2, [ 2.0, 2.0 ]), 10.9, 12.0 ]
     )
     dfa = DataFrame(
         a = [ 1.0, 2.0, 3.0, 4.0 ], 
-        b = [0.5, 5.0, MiceValue(2, [ 0.9859979256186087, 3.441250555637871 ]), 4.0], 
-        c = [2.0, MiceValue(2, [ 2.0, 2.0 ]), 10.9, 12.0]
+        b = [ 0.5, 5.0, MiceValue(2, [ 0.9859979256186087, 3.441250555637871 ]), 4.0 ], 
+        c = [ 2.0, MiceValue(2, [ 2.0, 2.0 ]), 10.9, 12.0 ]
     )
     df2 = deepcopy(df)
     updatemicevalues!(df2, :b, [ :a, :c ], 2)
@@ -284,13 +299,13 @@ end
 @testset "Update MiceValues, one predictive variable" begin
     df = DataFrame(
         a = [ 1.0, 2.0, 3.0, 4.0 ], 
-        b = [0.5, 5.0, MiceValue(2, [ 0.5, 5.0 ]), 4.0], 
-        c = [2.0, MiceValue(2, [ 2.0, 2.0 ]), 10.9, 12.0]
+        b = [ 0.5, 5.0, MiceValue(2, [ 0.5, 5.0 ]), 4.0 ], 
+        c = [ 2.0, MiceValue(2, [ 2.0, 2.0 ]), 10.9, 12.0 ]
     )
     dfa = DataFrame(
         a = [ 1.0, 2.0, 3.0, 4.0 ], 
-        b = [0.5, 5.0, MiceValue(2, [ 2.8, 4.1499999999999995 ]), 4.0], 
-        c = [2.0, MiceValue(2, [ 2.0, 2.0 ]), 10.9, 12.0]
+        b = [ 0.5, 5.0, MiceValue(2, [ 2.8, 4.1499999999999995 ]), 4.0 ], 
+        c = [ 2.0, MiceValue(2, [ 2.0, 2.0 ]), 10.9, 12.0 ]
     )
     df2 = deepcopy(df)
     updatemicevalues!(df2, :b, :a, 2)
@@ -312,5 +327,75 @@ end
     b = initializemice(5, a)
     @test sum([ ismissing(bi) for bi ∈ b ]) == 0
     @test sum([ wasmissing(bi; warn=false) for bi ∈ b ]) == 2
+    @test strictwasmissing(MiceValue(2, [ 2.0, 2.0 ]))
+    @test !strictwasmissing(0)
+    @test !strictwasmissing(missing)
+end
+@testset "Index values that were previously missing" begin
+    a = [ 0.0, 1.0, missing, 2.0, missing ]
+    @test wasmissingindex(a) == Int[]
+    b = initializemice(5, a)
+    @test wasmissingindex(b) == [ 3, 5 ]
+end
+@testset "View individual sets of values from MiceValues" begin
+    rng = StableRNG(1)
+    a = initializemice(rng, 6, [ 0.0, 1.0, 2.0, missing ])
+    b = initializemice(rng, 6, [ 0, 1, 2, missing ])
+    ra = [ 2.0, 0.0, 1.0, 1.0, 0.0, 0.0 ]
+    rb = [ 0.0, 2.0, 1.0, 0.0, 1.0, 0.0 ]
+    @testset for i ∈ 1:6
+        va = MiceView(a, i)
+        @test va[1] == 0 
+        @test va[4] == ra[i]
+        vb = MiceView(b, i)
+        @test vb[1] == 0 
+        @test vb[4] == rb[i]
+    end 
+    # test for error when try to view values greater than the number of imputed values
+    @test_throws DimensionMismatch MiceView(a, 7)
+    @test_throws DimensionMismatch MiceView(b, 7)
+
+
+#=    v = [ 1.0, MiceValue(5, [ 1.0, 2.0, 3.0, 4.0, 5.0 ]), 5.0 ]
+    @test miceview(v, 1) == [ 1.0, 1.0, 5.0 ]=#
+ #=   @test miceview(v, 2) == [ 1.0, 2.0, 5.0 ]
+    df = DataFrame( ; 
+        a=[ 1.0, MiceValue(5, [ 1.0, 2.0, 3.0, 4.0, 5.0 ]), 2.0 ], b=[ 3.0, 4.0, 5.0 ]
+    )
+    @test miceview(df, 1) == [
+        1.0  3.0
+        1.0  4.0
+        2.0  5.0
+    ]
+    @test miceview(df, 2) == [
+        1.0  3.0
+        2.0  4.0
+        2.0  5.0
+    ]
+    @test miceview(df, 1, 3) == [
+        1.0  
+        3.0  
+        2.0  
+    ]
+    @test miceview(df, "a", 4) == [
+        1.0  
+        4.0  
+        2.0  
+    ]
+    @test miceview(df, :a, 5) == [
+        1.0  
+        5.0  
+        2.0  
+    ]
+    @test miceview(df, [ :a, :b ], 1) == [
+        1.0  3.0
+        1.0  4.0
+        2.0  5.0
+    ]
+    @test miceview(df, 1:2, 2) == [
+        1.0  3.0
+        2.0  4.0
+        2.0  5.0
+    ]=#
 end
 end  # @testset "SimpleMice.jl"

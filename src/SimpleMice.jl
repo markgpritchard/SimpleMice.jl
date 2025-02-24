@@ -2,31 +2,115 @@
 module SimpleMice
 
 using AutoHashEquals, DataFrames, GLM, Random, StaticArrays, StatsBase
-import Base: ^, /, *, +, -, sin, cos, tan, log, exp, getindex, isapprox, iterate, setindex!
+import Base: ^, /, *, +, -, sin, cos, tan, log, exp, getindex, isapprox, iterate, length, setindex!, size
 
-export MiceValue
-export ^, /, *, +, -, sin, cos, tan, log, exp, getindex, isapprox, iterate, setindex!
-export initializemice, initializemice!, micevalues, nonemissing, updatemicevalues!
-export wasmissing
+export MiceArray, MiceValue, MiceVector, MiceView
+export ^, /, *, +, -, sin, cos, tan, log, exp, getindex, isapprox, iterate, length, setindex!, size
+export initializemice, initializemice!, micevalues, nonemissing, strictwasmissing
+export updatemicevalues!, wasmissing, wasmissingindex
 
-abstract type AbstractMiceValue{N} end 
+abstract type AbstractMiceValue{M} end 
 
-@auto_hash_equals struct MiceValue{N, T} <: AbstractMiceValue{N} 
-    x       :: MVector{N, T} 
+@auto_hash_equals struct MiceValue{M, T} <: AbstractMiceValue{M} 
+    x                   :: MVector{M, T} 
+end
+
+@auto_hash_equals struct MiceArray{M, S, T, N} <: AbstractArray{Union{T, MiceValue{M, S}}, N} 
+    v                   :: Array{Union{T, MiceValue{M, S}}, N} 
+end
+
+const MiceVector{M, S, T} = MiceArray{M, S, T, 1}
+
+@auto_hash_equals struct MiceView{M, Z, S, T, N} <: AbstractArray{Z, N}
+    parent              :: MiceArray{M, S, T, N} 
+    iteration           :: Int
+    wasmissingindex     :: Vector{Int}
 end
 
 function MiceValue(v::AbstractVector) 
-    N = length(v)
-    return MiceValue(N, v) 
+    M = length(v)
+    return MiceValue(M, v) 
 end
 
-function MiceValue(N::Integer, v::AbstractVector) 
-    return MiceValue(MVector{N}(v)) 
+function MiceValue(M::Integer, v::AbstractVector) 
+    return MiceValue(MVector{M}(v)) 
+end
+
+function MiceView(parent::MiceArray{M, S, T, N}, iteration) where {M, S, T, N}
+    iteration > M && throw(
+        DimensionMismatch(
+            "cannot form a view for iteration greater than the number of imputed values"
+        )
+    )
+    wmi = wasmissingindex(parent)
+    return _makemiceview(parent, iteration, wmi)
+end
+
+# keep this code, but at the moment it is quicker to use the version below 
+#=
+function MiceView(parent::MiceVector{M, S, T}, iteration, j) where {M, S, T}
+    iteration > M && throw(
+        DimensionMismatch(
+            "cannot form a view for iteration greater than the number of imputed values"
+        )
+    )
+    wmi = wasmissingindex(parent[j])
+    return _makemiceview(MiceVector{M, S, T}(parent[j]), iteration, wmi)
+end
+
+function MiceView(parent::MiceVector{M, S, T}, iteration, j::Integer) where {M, S, T}
+    iteration > M && throw(
+        DimensionMismatch(
+            "cannot form a view for iteration greater than the number of imputed values"
+        )
+    )
+    wmi = wasmissingindex([parent[j]])
+    return _makemiceview(MiceVector{M, S, T}([parent[j]]), iteration, wmi)
+end
+=#
+
+function MiceView(parent::MiceVector{M, S, T}, iteration, j) where {M, S, T}
+    a = MiceView(parent, iteration)
+    return a[j] 
+end
+
+
+
+function _makemiceview(parent::MiceArray{M, S, S, N}, iteration, wmi) where {M, S, N}
+    return MiceView{M, S, S, S, N}(parent, iteration, wmi)
+end
+
+function _makemiceview(parent::MiceArray{M, S, T, N}, iteration, wmi) where {M, S, T, N}
+    Z = typeof(one(S) + one(T))
+    return MiceView{M, Z, S, T, N}(parent, iteration, wmi)
 end
 
 getindex(a::AbstractMiceValue, i) = a.x[i]
 iterate(a::AbstractMiceValue) = iterate(a.x)
 iterate(a::AbstractMiceValue, i) = iterate(a.x, i)
+getindex(a::MiceArray, i::Integer) = getindex(a.v, i)
+getindex(a::MiceArray, args...) = getindex(a.v, args...)
+iterate(a::MiceArray) = iterate(a.v)
+iterate(a::MiceArray, i) = iterate(a.v, i)
+length(a::MiceArray) = length(a.v)
+size(a::MiceArray) = size(a.v)
+
+function getindex(a::MiceView{M, Z, S, T, N}, i::Integer) where {M, Z, S, T, N}
+    if i ∈ a.wasmissingindex 
+        return _micevalue(a, i, :a)
+    else 
+        return _micevalue(a, i)
+    end 
+end
+
+function getindex(a::MiceView{M, Z, S, T, N}, i) where {M, Z, S, T, N}
+    return [ getindex(a, ix) for ix ∈ i ]
+end
+
+iterate(a::MiceView) = iterate(a.parent)
+iterate(a::MiceView, i) = iterate(a.parent, i)
+length(a::MiceView) = length(a.parent)
+size(a::MiceView) = size(a.parent)
 
 function isapprox(a::AbstractMiceValue, b::AbstractMiceValue; kwargs...)
     return isapprox(a.x, b.x; kwargs...)
@@ -81,31 +165,37 @@ end
 
 wasmissing(::Any; kwargs...) = false
 
-function initializemice(N::Integer, x::AbstractVector)
-    return initializemice(Random.default_rng(), N, x)
+strictwasmissing(::AbstractMiceValue) = true
+strictwasmissing(::Any) = false
+wasmissingindex(v::AbstractVector) = findall(strictwasmissing, v)
+
+function initializemice(M::Integer, x::AbstractVector)
+    return initializemice(Random.default_rng(), M, x)
 end
 
-function initializemice(rng::Random.AbstractRNG, N::Integer, x::AbstractVector)
-    return initializemice(rng, Float64, N, x)
+function initializemice(rng::Random.AbstractRNG, M::Integer, x::AbstractVector)
+    return initializemice(rng, Float64, M, x)
 end
 
-function initializemice(T::DataType, N::Integer, x::AbstractVector)
-    return initializemice(Random.default_rng(), T, N, x)
+function initializemice(T::DataType, M::Integer, x::AbstractVector)
+    return initializemice(Random.default_rng(), T, M, x)
 end
 
-function initializemice(rng::Random.AbstractRNG, T::DataType, N::Integer, x::AbstractVector)
+function initializemice(rng::Random.AbstractRNG, S::DataType, M::Integer, x::AbstractVector)
     if nonemissing(x) 
         return x 
     end
     nmvector = collect(skipmissing(x))
     @assert length(nmvector) >= 1 "Must have at least 1 non-missing value"
-    Z = typeof(nmvector[1])
-    return Union{Z, MiceValue{N, T}}[
-        ismissing(xi) ? 
-            MiceValue(N, _samplemice(rng, T, N, nmvector)) :
-            xi 
-        for xi ∈ x 
-    ]
+    T = typeof(nmvector[1])
+    return MiceVector{M, S, T}(
+        [
+            ismissing(xi) ? 
+                MiceValue(M, _samplemice(rng, S, M, nmvector)) :
+                xi 
+            for xi ∈ x 
+        ]
+    )
 end
 
 _samplemice(rng, T, N, nmvector) = [ T(sample(rng, nmvector)) for _ ∈ 1:N ]
@@ -164,11 +254,24 @@ end
 
 function __initializemice!(rng, N, df, colname, i)
     newvec = initializemice(rng, N, getproperty(df, colname))
+    println(typeof(newvec))
     select!(df, Not(colname))
     insertcols!(df, i, colname => newvec)
 end
 
 micevalues(x::AbstractVector, i) = [ _micevalue(xi, i) for xi ∈ x ]
+
+#=
+function getindex(a::MiceView{T, P, N}, i) where {T, P, N}
+    if i ∈ a.wasmissingindex 
+        x = _micevalue(getindex(a.parent, i), a.iteration) 
+    else 
+        x = getindex(a.parent, i) 
+    end 
+    return T(x)
+end
+=#
+
 
 function micevalues(df::DataFrame, i)
     namevec = names(df)
@@ -196,6 +299,11 @@ end
 
 _micevalue(a::AbstractMiceValue, i) = getindex(a, i)
 _micevalue(a::Number, ::Integer) = a
+_micevalue(x::MiceView{M, Z, S, T, N}, i) where {M, Z, S, T, N} = Z(getindex(x.parent, i))
+
+function _micevalue(x::MiceView{M, Z, S, T, N}, i, ::Symbol) where {M, Z, S, T, N}
+    return Z(_micevalue(getindex(x.parent, i), x.iteration))
+end
 
 function _linearfit(df, x, y, i)
     xmat = micevalues(df, x, i)
@@ -254,4 +362,4 @@ function ___updatemicevalues!(
     getproperty(df, y)[j][i] = predictions[j]
 end
 
-end # module SimpleMice
+end  # module SimpleMice
