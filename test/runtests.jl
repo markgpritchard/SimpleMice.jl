@@ -3,6 +3,7 @@ using SimpleMice
 using Test
 using DataFrames, GLM
 using StableRNGs
+import SimpleMice: MiceValue
 
 @testset "SimpleMice.jl" begin
 @testset "Equality and differences in MiceValues" begin
@@ -603,6 +604,23 @@ end
         @test isapprox(imputeresult1[i, j], dfa[i, j]; atol=1e-12)
         @test isapprox(imputeresult2[i, j], dfa[i, j]; atol=1e-12)
         @test isapprox(imputeresult3[i, j], dfa[i, j]; atol=1e-12)
+    end
+end
+@testset "Multithread argument does not change output" begin
+    df = DataFrame(
+        a = [ 1.0, 2.0, 3.0, 4.0 ], 
+        b = [ 0.5, 5.0, missing, 4.0 ], 
+        c = [ 2.0, missing, 10.9, 12.0 ]
+    )
+    rng_a = StableRNG(1)
+    imputeresult1 = impute(rng_a, 5, df, [ :b, :c ], :a, 1)
+    rng_a = StableRNG(1)
+    imputeresult2 = impute(rng_a, 5, df, [ :b, :c ], :a, 1; multithread=true)
+    rng_a = StableRNG(1)
+    imputeresult3 = impute(rng_a, 5, df, [ :b, :c ], :a, 1; multithread=false)
+    for i ∈ 1:4, j ∈ 1:3 
+        @test isapprox(imputeresult1[i, j], imputeresult2[i, j]; atol=1e-12)
+        @test isapprox(imputeresult2[i, j], imputeresult3[i, j]; atol=1e-12)
     end
 end
 end  # @testset "SimpleMice.jl"
