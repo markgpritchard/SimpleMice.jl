@@ -3,20 +3,8 @@ using SimpleMice
 using Test
 using DataFrames, GLM
 using StableRNGs
-import SimpleMice: MiceValue
 
 @testset "SimpleMice.jl" begin
-@testset "Equality and differences in MiceValues" begin
-    @test MiceValue(2, [ 0, 0 ]) == MiceValue(2, [ 0, 0 ])
-    @test MiceValue(2, [ 0, 0 ]) == MiceValue(2, [ 0.0, 0.0 ])
-    @test MiceValue(2, [ 0, 0 ]) != MiceValue(2, [ 0, 1 ])
-    @test MiceValue(2, [ 0, 0 ]) != MiceValue(3, [ 0, 0, 0 ])
-    @test MiceValue(2, [ 1, 1 ]) ≈ MiceValue(2, [ 1.0, 1.0 ])
-    @test !isapprox(MiceValue(2, [ 1, 1 ]), MiceValue(2, [ 1.0, 2.0 ]))
-    @test MiceValue(2, [ 1, 1 ]) ≈ MiceValue(2, [ 1.0, 1 + 1e-20 ])
-    @test isapprox(MiceValue(2, [ 0.1, 0.1 ]), MiceValue(2, [ 0.1, 0.15 ]); atol=0.05)
-    @test isapprox(MiceValue(2, [ 0.1, 0.1 ]), MiceValue(2, [ 0.1, 0.15 ]); rtol=0.34)
-end
 @testset "Convert missing values into `Mice` values" begin
     # recognise vectors with no missing values 
     @test nonemissing(ones(2))
@@ -64,7 +52,7 @@ end
     # assertion error if no non-missing values 
     @test_throws AssertionError initializemice(1, [ missing ])
     # dimension mismatch error if wrong number of values passed 
-    @test_throws DimensionMismatch MiceValue(5, [ 1, 2, 1 ]) 
+    #@test_throws DimensionMismatch MiceValue(5, [ 1, 2, 1 ]) 
 end  
 @testset "Convert missing values in a DataFrame into `Mice` values" begin
     @testset "DataFrame with no missing values" begin
@@ -290,27 +278,6 @@ end
     @test dfav2.b == [ 3, 4, 5 ]
     @test_throws AssertionError imputedtableview(dfa, 0)
     @test_throws AssertionError imputedtableview(dfa, 6)
-end
-@testset "Arithmetic on MiceValues" begin
-    @test MiceValue(5, [ 0, 1, 2, 3, 4 ]) + 1 == MiceValue(5, [ 1, 2, 3, 4, 5 ])
-    @test 1 + MiceValue(5, [ 0, 1, 2, 3, 4 ]) == MiceValue(5, [ 1, 2, 3, 4, 5 ])
-    s = MiceValue(5, [ 1, 2, 1, 2, 1 ]) + MiceValue(5, [ 0, 1, 2, 3, 4 ])
-    @test s == MiceValue(5, [ 1, 3, 3, 5, 5 ])
-    @test_throws DimensionMismatch MiceValue(3, [ 1, 2, 1 ]) + MiceValue(4, [ 0, 1, 2, 3 ])
-    @test MiceValue(5, [ 1, 2, 3, 4, 5 ]) - 1 == MiceValue(5, [ 0, 1, 2, 3, 4 ])
-    @test 1 - MiceValue(5, [ 0, 1, 2, 3, 4 ]) == MiceValue(5, [ 1, 0, -1, -2, -3 ])
-    s = MiceValue(5, [ 1, 3, 3, 5, 5 ]) - MiceValue(5, [ 0, 1, 2, 3, 4 ])
-    @test MiceValue(5, [ 0, 1, 2, 3, 4 ]) * 2 == MiceValue(5, [ 0, 2, 4, 6, 8 ])
-    @test MiceValue(5, [ 0, 1, 2, 3, 4 ]) / 2 == MiceValue(5, [ 0.0, 0.5, 1.0, 1.5, 2.0 ])
-    @test MiceValue(5, [ 0, 1, 2, 3, 4 ]) ^ 2 == MiceValue(5, [ 0, 1, 4, 9, 16 ])
-    @test s == MiceValue(5, [ 1, 2, 1, 2, 1 ])
-    s2 = exp(MiceValue(5, [ 0, 1, 2, 3, 4 ]))
-    @test s2 == MiceValue(5, [ exp(0), exp(1), exp(2), exp(3), exp(4) ])
-    @test log(MiceValue(2, [ 1, 2 ])) == MiceValue(2, [ log(1), log(2) ])
-    # next three tests use \approx as there were rounding errors. Also tests `isapprox`
-    @test sin(MiceValue(2, [ π, 2 ])) ≈ MiceValue(2, [ sin(π), sin(2) ])
-    @test cos(MiceValue(2, [ π, 2 ])) ≈ MiceValue(2, [ cos(π), cos(2) ])
-    @test tan(MiceValue(2, [ π, 2 ])) ≈ MiceValue(2, [ tan(π), tan(2) ])
 end
 @testset "Update MiceValues, one imputed value, multiple predictive variables" begin
     # testing this function relies on assuming that GLM does what we want
@@ -648,5 +615,21 @@ end
     @test imputeresult2.b isa SimpleMice.ImputedVector
     @test imputeresult3.b isa SimpleMice.ImputedVector
     @test imputeresult4.b isa SimpleMice.ImputedVectorMStatic
+end
+@testset "Combine values with Rubin's rules" begin
+    rng_a = StableRNG(1)
+    v = initializemice(rng_a, 5, [ 1, missing, 5, 3 ])
+    # imputed values [ 3.0, 1.0, 5.0, 5.0, 1.0 ]
+    @test sum(v) == [ 12, 10, 14, 14, 10 ]
+    @test elementmean(v) == [ 3, 2.5, 3.5, 3.5, 2.5 ]
+    @test mean(v) == 3
+    @test elementvar(v) == [
+        var([ 1, 3, 5, 3]),
+        var([ 1, 1, 5, 3]),
+        var([ 1, 5, 5, 3]),
+        var([ 1, 5, 5, 3]),
+        var([ 1, 1, 5, 3])        
+    ]
+    @test var(v) == 3.766666666666666
 end
 end  # @testset "SimpleMice.jl"

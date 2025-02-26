@@ -1,11 +1,53 @@
-
-# Source for these functions: 
+# Functions to combine imputed values. Soure for Rubin's rules:
 # https://www.ncbi.nlm.nih.gov/pmc/articles/PMC2727536/
+
+function sum(v::AbstractImputedVector{Ni, S, T}) where {Ni, S, T}
+    Z = typeof(one(S) + one(T))
+    return SVector{Ni, Z}([ sum(imputedvectorview(v, i)) for i ∈ 1:Ni ])
+end
+
+function elementmean(v::AbstractImputedVector{Ni, S, T}) where {Ni, S, T}
+    Z = typeof(one(S) + one(T) / 1)
+    #return SVector{Ni, Z}(sum(v) ./ length(v))
+    return SVector{Ni, Z}([ mean(imputedvectorview(v, i)) for i ∈ 1:Ni ])
+end
+
+function mean(v::AbstractImputedVector{Ni, S, T}) where {Ni, S, T}
+    return sum(elementmean(v)) / Ni
+end
+
+function elementvar(v::AbstractImputedVector{Ni, S, T}) where {Ni, S, T}
+    Z = typeof(one(S) + one(T) / 1)
+    return SVector{Ni, Z}([ var(imputedvectorview(v, i)) for i ∈ 1:Ni ])
+end
+
+function var(v::AbstractImputedVector{Ni, S, T}) where {Ni, S, T}
+    #=ubar = sum(elementvar(v)) / Ni
+    q = elementmean(v)
+    qbar = mean(v) 
+    qsquarediff = @. (q - qbar)^2
+    b = sum(qsquarediff) / (Ni - 1)
+    v = ubar + (1 + 1 / Ni) * b
+    return v=#
+    means = elementmean(v)
+    vars = elementvar(v)
+    return rubinsvar(Ni, means, vars)
+end
+
+function rubinsvar(Ni, means, vars)
+    ubar = mean(vars)
+    qbar = mean(means) 
+    qsquarediff = @. (means - qbar)^2
+    b = sum(qsquarediff) / (Ni - 1)
+    v = ubar + (1 + 1 / Ni) * b
+    return v
+end
+
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # Combinations by Rubin's rules 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
+#=
 """
     rubinsmean(q::Vector, n::Int)
 
@@ -221,3 +263,4 @@ function tablesummarystats(d::ImputedVector{T}, name::Symbol) where T <: Union{<
     return ( variable = name, mean = stats.mean, min = stats.min, 
         median = stats.median, max = stats.max, nmissing = stats.nmiss, eltype = elt )
 end 
+=#
