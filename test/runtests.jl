@@ -1,7 +1,7 @@
 
 using SimpleMice
 using Test
-using DataFrames
+using DataFrames, GLM
 using StableRNGs
 
 @testset "SimpleMice.jl" begin
@@ -26,30 +26,20 @@ end
     # if nothing missing, returns same type as is provided 
     @test initializemice(5, ones(Int, 1)) isa Vector{Int64} 
     # values of missing data populated with other values from the vector 
-    #@test initializemice(5, [ 1, missing ]) == [ 1, MiceValue(5, ones(Float64, 5)) ]
-    @test initializemice(5, [ 1, missing ]) == MiceVector{5, Float64, Int}(
-        [ 1, MiceValue(5, ones(Float64, 5)) ]
-    )
+    a1 = initializemice(5, [ 1, missing ])
+    @test a1[2] == ones(5)
     # provides correct number of imputed values 
-    #@test initializemice(4, [ 1, missing ]) == [ 1, MiceValue(4, ones(Int, 4)) ]
-    @test initializemice(4, [ 1, missing ]) == MiceVector{4, Float64, Int}(
-        [ 1, MiceValue(4, ones(Float64, 4)) ]
-    )
+    a2 = initializemice(4, [ 1, missing ])
+    @test a2[2] == ones(4)
     # imputed values of correct type 
-    #@test initializemice(5, [ Float64(1), missing ]) == [ 1, MiceValue(5, ones(Float64, 5)) ]
-    @test initializemice(5, [ Float64(1), missing ]) == MiceVector{5, Float64, Float64}(
-        [ Float64(1), MiceValue(5, ones(Float64, 5)) ]
-    )
+    a3 = initializemice(5, [ Float64(1), missing ])
+    @test a3[2] == ones(Float64, 5)
     # non-missing values are not changed 
-    #@test initializemice(5, [ 2, missing ]) == [ 2, MiceValue(5, 2 .* ones(Int, 5)) ]
-    @test initializemice(5, [ 2, missing ]) == MiceVector{5, Float64, Int}(
-        [ 2, MiceValue(5, 2 .* ones(Float64, 5)) ]
-    )
+    @test a1[1] == 1
     # converted in whichever order 
-    #@test initializemice(5, [ missing, 1 ]) == [ MiceValue(5, ones(Int, 5)), 1 ]
-    @test initializemice(5, [ missing, 1 ]) == MiceVector{5, Float64, Int}(
-        [ MiceValue(5, ones(Float64, 5)), 1 ]
-    )
+    a4 = initializemice(5, [ missing, 1 ])
+    @test a4[1] == ones(Float64, 5)
+    @test a4[2] == 1
     @testset "Test sampled values" begin
         rng = StableRNG(1)
         a = initializemice(rng, 10, [ 0, 1, 2, missing ])
@@ -78,181 +68,227 @@ end
 @testset "Convert missing values in a DataFrame into `Mice` values" begin
     @testset "DataFrame with no missing values" begin
         df = DataFrame(; a=[ 1, 2 ], b=[ 3.0, 4.0 ])
-        dft = deepcopy(df)
-        initializemice!(5, dft)
-        @test dft == df
+        dfa = initializemice(5, df)
+        @testset for i ∈ 1:2, j ∈ 1:2
+            @test df[i, j] == dfa[i, j]
+        end
     end
     @testset "DataFrame with missing values in first column, column names" begin
         df = DataFrame(; a=[ 1, missing, 1 ], b=[ 3.0, 4.0, 5.0 ])
-        dft = deepcopy(df)
-        initializemice!(5, dft)
+        dfa1 = initializemice(5, df)
         # convert missing values in first column
-        @test dft == DataFrame(; a=[ 1, MiceValue(5, ones(Int, 5)), 1 ], b=[ 3.0, 4.0, 5.0 ])
-        # do nothing when given name of column with no missing values 
-        dft2 = deepcopy(df)
-        initializemice!(5, dft2, "b")
-        # need to subdivide test as missing == missing -> missing 
-        @test dft2.b == df.b
-        @test dft2.a[1] == df.a[1]
-        @test ismissing(dft2.a[2])
-        @test dft2.a[3] == df.a[3]
+        @test dfa1.a[2] == [ 1.0, 1.0, 1.0, 1.0, 1.0 ]
+        # no change to non-missing values 
+        @testset for i ∈ 1:2, j ∈ 1:2
+            if !ismissing(df[i, j])
+                @test df[i, j] == dfa1[i, j]
+            end
+        end
+        # choose not to convert column a so no changes to values 
+        dfa2 = initializemice(5, df, "b")
+        @testset for i ∈ 1:2, j ∈ 1:2
+            @test ismissing(df[i, j]) == ismissing(dfa2[i, j])
+            if !ismissing(df[i, j])
+                @test df[i, j] == dfa2[i, j]
+            end
+        end
         # modify first column when given its name
-        dft3 = deepcopy(df)
-        initializemice!(5, dft3, "a")
-        @test dft3 == dft
+        dfa3 = initializemice(5, df, "a")
+        # convert missing values in first column
+        @test dfa3.a[2] == [ 1.0, 1.0, 1.0, 1.0, 1.0 ]
+        # no change to non-missing values 
+        @testset for i ∈ 1:2, j ∈ 1:2
+            if !ismissing(df[i, j])
+                @test df[i, j] == dfa3[i, j]
+            end
+        end
         # modify first column when given both column names
-        dft4 = deepcopy(df)
-        initializemice!(5, dft4, [ "a", "b" ])
-        @test dft4 == dft
+        dfa4 = initializemice(5, df, [ "a", "b" ])
+        @testset for i ∈ 1:2, j ∈ 1:2
+            @test ismissing(dfa1[i, j]) == ismissing(dfa4[i, j])
+            if !ismissing(df[i, j])
+                @test dfa1[i, j] == dfa4[i, j]
+            end
+        end
     end
     @testset "DataFrame with missing values in first column, column symbols" begin
         df = DataFrame(; a=[ 1, missing, 1 ], b=[ 3.0, 4.0, 5.0 ])
-        dft = deepcopy(df)
-        initializemice!(5, dft)
-        # do nothing when given name of column with no missing values 
-        dft2 = deepcopy(df)
-        initializemice!(5, dft2, :b)
-        # need to subdivide test as missing == missing -> missing 
-        @test dft2.b == df.b
-        @test dft2.a[1] == df.a[1]
-        @test ismissing(dft2.a[2])
-        @test dft2.a[3] == df.a[3]
+        dfa1 = initializemice(5, df)
+        # choose not to convert column a so no changes to values 
+        dfa2 = initializemice(5, df, :b)
+        @testset for i ∈ 1:2, j ∈ 1:2
+            @test ismissing(df[i, j]) == ismissing(dfa2[i, j])
+            if !ismissing(df[i, j])
+                @test df[i, j] == dfa2[i, j]
+            end
+        end
         # modify first column when given its name
-        dft3 = deepcopy(df)
-        initializemice!(5, dft3, :a)
-        @test dft3 == dft
+        dfa3 = initializemice(5, df, :a)
+        # convert missing values in first column
+        @test dfa3.a[2] == [ 1.0, 1.0, 1.0, 1.0, 1.0 ]
+        # no change to non-missing values 
+        @testset for i ∈ 1:2, j ∈ 1:2
+            if !ismissing(df[i, j])
+                @test df[i, j] == dfa3[i, j]
+            end
+        end
         # modify first column when given both column names
-        dft4 = deepcopy(df)
-        initializemice!(5, dft4, [ :a, :b ])
-        @test dft4 == dft
+        dfa4 = initializemice(5, df, [ :a, :b ])
+        @testset for i ∈ 1:2, j ∈ 1:2
+            @test ismissing(dfa1[i, j]) == ismissing(dfa4[i, j])
+            if !ismissing(df[i, j])
+                @test dfa1[i, j] == dfa4[i, j]
+            end
+        end
     end
     @testset "DataFrame with missing values in first column, column indexes" begin
         df = DataFrame(; a=[ 1, missing, 1 ], b=[ 3.0, 4.0, 5.0 ])
-        dft = deepcopy(df)
-        initializemice!(5, dft)
-        # do nothing when given index of column with no missing values 
-        dft2 = deepcopy(df)
-        initializemice!(5, dft2, 2)
-        # need to subdivide test as missing == missing -> missing 
-        @test dft2.b == df.b
-        @test dft2.a[1] == df.a[1]
-        @test ismissing(dft2.a[2])
-        @test dft2.a[3] == df.a[3]
+        dfa1 = initializemice(5, df)
+        # choose not to convert first column so no changes to values 
+        dfa2 = initializemice(5, df, 2)
+        @testset for i ∈ 1:2, j ∈ 1:2
+            @test ismissing(df[i, j]) == ismissing(dfa2[i, j])
+            if !ismissing(df[i, j])
+                @test df[i, j] == dfa2[i, j]
+            end
+        end
         # modify first column when given its index
-        dft3 = deepcopy(df)
-        initializemice!(5, dft3, 1)
-        @test dft3 == dft
+        dfa3 = initializemice(5, df, 1)
+        # convert missing values in first column
+        @test dfa3.a[2] == [ 1.0, 1.0, 1.0, 1.0, 1.0 ]
+        # no change to non-missing values 
+        @testset for i ∈ 1:2, j ∈ 1:2
+            if !ismissing(df[i, j])
+                @test df[i, j] == dfa3[i, j]
+            end
+        end
         # modify first column when given both column indexes
-        dft4 = deepcopy(df)
-        initializemice!(5, dft4, 1:2)
-        @test dft4 == dft
+        dfa4 = initializemice(5, df, 1:2)
+        @testset for i ∈ 1:2, j ∈ 1:2
+            @test ismissing(dfa1[i, j]) == ismissing(dfa4[i, j])
+            if !ismissing(df[i, j])
+                @test dfa1[i, j] == dfa4[i, j]
+            end
+        end
     end
     @testset "DataFrame with no missing values and rng" begin
         df = DataFrame(; a=[ 1, 2 ], b=[ 3.0, 4.0 ])
-        dft = deepcopy(df)
         rng = StableRNG(1)
-        initializemice!(rng, 5, dft)
-        @test dft == df
+        dfa = initializemice(rng, 5, df)
+        @testset for i ∈ 1:2, j ∈ 1:2
+            @test df[i, j] == dfa[i, j]
+        end
     end
     @testset "DataFrame with missing values in first column, with rng" begin
         df = DataFrame(; a=[ 1, missing, 1 ], b=[ 3.0, 4.0, 5.0 ])
-        dft = deepcopy(df)
         rng = StableRNG(1)
-        initializemice!(rng, 5, dft)
-        # convert missing values in first column
-        @test dft == DataFrame(; a=[ 1, MiceValue(5, ones(Int, 5)), 1 ], b=[ 3.0, 4.0, 5.0 ]) 
+        dfa1 = initializemice(rng, 5, df)
+        @test dfa1.a[2] == [ 1.0, 1.0, 1.0, 1.0, 1.0 ]
+        # no change to non-missing values 
+        @testset for i ∈ 1:2, j ∈ 1:2
+            if !ismissing(df[i, j])
+                @test df[i, j] == dfa1[i, j]
+            end
+        end
         # accept rng and String
-        dft2 = deepcopy(df)
-        initializemice!(rng, 5, dft2, "a")
-        @test dft2 == dft
+        dfa2 = initializemice(rng, 5, df, "a")
+        @test dfa2.a[2] == [ 1.0, 1.0, 1.0, 1.0, 1.0 ]
+        # no change to non-missing values 
+        @testset for i ∈ 1:2, j ∈ 1:2
+            if !ismissing(df[i, j])
+                @test df[i, j] == dfa2[i, j]
+            end
+        end
         # accept rng and vector of Strings
-        dft3 = deepcopy(df)
-        initializemice!(rng, 5, dft3, [ "a", "b" ])
-        @test dft3 == dft
+        dfa3 = initializemice(rng, 5, df, [ "a", "b" ])
+        @testset for i ∈ 1:2, j ∈ 1:2
+            @test ismissing(dfa1[i, j]) == ismissing(dfa3[i, j])
+            if !ismissing(df[i, j])
+                @test dfa1[i, j] == dfa3[i, j]
+            end
+        end
         # accept rng and Symbol
-        dft4 = deepcopy(df)
-        initializemice!(rng, 5, dft4, :a)
-        @test dft4 == dft
+        dfa4 = initializemice(rng, 5, df, :a)
+        @test dfa4.a[2] == [ 1.0, 1.0, 1.0, 1.0, 1.0 ]
+        # no change to non-missing values 
+        @testset for i ∈ 1:2, j ∈ 1:2
+            if !ismissing(df[i, j])
+                @test df[i, j] == dfa4[i, j]
+            end
+        end
         # accept rng and vector of Symbols
-        dft5 = deepcopy(df)
-        initializemice!(rng, 5, dft5, [ :a, :b ])
-        @test dft5 == dft
+        dfa5 = initializemice(rng, 5, df, [ :a, :b ])
+        @testset for i ∈ 1:2, j ∈ 1:2
+            @test ismissing(dfa1[i, j]) == ismissing(dfa5[i, j])
+            if !ismissing(df[i, j])
+                @test dfa1[i, j] == dfa5[i, j]
+            end
+        end
         # accept rng and Index
-        dft6 = deepcopy(df)
-        initializemice!(rng, 5, dft6, 1)
-        @test dft6 == dft
+        dfa6 = initializemice(rng, 5, df, 1)
+        @test dfa6.a[2] == [ 1.0, 1.0, 1.0, 1.0, 1.0 ]
+        # no change to non-missing values 
+        @testset for i ∈ 1:2, j ∈ 1:2
+            if !ismissing(df[i, j])
+                @test df[i, j] == dfa6[i, j]
+            end
+        end
         # accept rng and vector of Indexes
-        dft7 = deepcopy(df)
-        initializemice!(rng, 5, dft7, 1:2)
-        @test dft7 == dft
+        dfa7 = initializemice(rng, 5, df, 1:2)
+        @testset for i ∈ 1:2, j ∈ 1:2
+            @test ismissing(dfa1[i, j]) == ismissing(dfa7[i, j])
+            if !ismissing(df[i, j])
+                @test dfa1[i, j] == dfa7[i, j]
+            end
+        end
     end
     @testset "Same rng gives same results" begin
         @testset for i ∈ [ "a", [ "a", "b" ], :a, [ :a, :b ], 1, 1:2 ]
             df = DataFrame(; a=[ 1, missing, 2 ], b=[ 3.0, 4.0, 5.0 ])
-            dft_a = deepcopy(df)
             rng_a = StableRNG(1)
-            initializemice!(rng_a, 5, dft_a, i)
-            dft_b = deepcopy(df)
+            dfa_a = initializemice(rng_a, 5, df, i)
             rng_b = StableRNG(1)
-            initializemice!(rng_b, 5, dft_b, i) 
-            @test dft_a == dft_b
+            dfa_b = initializemice(rng_b, 5, df, i)
+            @test dfa_a.a == dfa_b.a  # confirm usefulness of test used in next section
+            @testset for i ∈ 1:2, j ∈ 1:2
+                @test ismissing(dfa_a[i, j]) == ismissing(dfa_b[i, j])
+                if !ismissing(dfa_a[i, j])
+                    @test dfa_a[i, j] == dfa_b[i, j]
+                end
+            end
         end
     end
     @testset "Different rng gives different results" begin
         @testset for i ∈ [ "a", [ "a", "b" ], :a, [ :a, :b ], 1, 1:2 ]
             df = DataFrame(; a=[ 1, missing, 2 ], b=[ 3.0, 4.0, 5.0 ])
-            dft_a = deepcopy(df)
             rng_a = StableRNG(1)
-            initializemice!(rng_a, 5, dft_a, i)
-            dft_b = deepcopy(df)
+            dfa_a = initializemice(rng_a, 5, df, i)
             rng_b = StableRNG(2)
-            initializemice!(rng_b, 5, dft_b, i) 
-            @test dft_a != dft_b
+            dfa_b = initializemice(rng_b, 5, df, i)
+            @test dfa_a.a != dfa_b.a
         end
     end
 end  
-@testset "Manipulate MiceValues" begin
-    v = [ 1.0, MiceValue(5, [ 1.0, 2.0, 3.0, 4.0, 5.0 ]), 5.0 ]
-    @test micevalues(v, 1) == [ 1.0, 1.0, 5.0 ]
-    @test micevalues(v, 2) == [ 1.0, 2.0, 5.0 ]
-    df = DataFrame( ; 
-        a=[ 1.0, MiceValue(5, [ 1.0, 2.0, 3.0, 4.0, 5.0 ]), 2.0 ], b=[ 3.0, 4.0, 5.0 ]
-    )
-    @test micevalues(df, 1) == [
-        1.0  3.0
-        1.0  4.0
-        2.0  5.0
-    ]
-    @test micevalues(df, 2) == [
-        1.0  3.0
-        2.0  4.0
-        2.0  5.0
-    ]
-    @test micevalues(df, 1, 3) == [
-        1.0  
-        3.0  
-        2.0  
-    ]
-    @test micevalues(df, "a", 4) == [
-        1.0  
-        4.0  
-        2.0  
-    ]
-    @test micevalues(df, :a, 5) == [
-        1.0  
-        5.0  
-        2.0  
-    ]
-    @test micevalues(df, [ :a, :b ], 1) == [
-        1.0  3.0
-        1.0  4.0
-        2.0  5.0
-    ]
-    @test micevalues(df, 1:2, 2) == [
-        1.0  3.0
-        2.0  4.0
-        2.0  5.0
-    ]
+@testset "Manipulate ImputedVector" begin
+    rng_a = StableRNG(1)
+    v = initializemice(rng_a, 5, [ 1, missing, 5 ])
+    # imputed values [ 5.0, 1.0, 1.0, 5.0, 5.0 ]
+    @test imputedvectorview(v, 1) == [ 1.0, 5.0, 5.0 ]
+    @test imputedvectorview(v, 2) == [ 1.0, 1.0, 5.0 ]
+    @test_throws AssertionError imputedvectorview(v, 0)
+    @test_throws AssertionError imputedvectorview(v, 6)
+    df = DataFrame( ; a=[ 1, missing, 2 ], b=[ 3, 4, 5 ])
+    rng_b = StableRNG(1)
+    dfa = initializemice(rng_b, 5, df)
+    # imputed values [ 2.0, 1.0, 1.0, 2.0, 2.0 ]
+    dfav1 = imputedtableview(dfa, 1)
+    @test dfav1.a == [ 1.0, 2.0, 2.0 ]
+    @test dfav1.b == [ 3, 4, 5 ]
+    dfav2 = imputedtableview(dfa, 2)
+    @test dfav2.a == [ 1.0, 1.0, 2.0 ]
+    @test dfav2.b == [ 3, 4, 5 ]
+    @test_throws AssertionError imputedtableview(dfa, 0)
+    @test_throws AssertionError imputedtableview(dfa, 6)
 end
 @testset "Arithmetic on MiceValues" begin
     @test MiceValue(5, [ 0, 1, 2, 3, 4 ]) + 1 == MiceValue(5, [ 1, 2, 3, 4, 5 ])
@@ -275,127 +311,298 @@ end
     @test cos(MiceValue(2, [ π, 2 ])) ≈ MiceValue(2, [ cos(π), cos(2) ])
     @test tan(MiceValue(2, [ π, 2 ])) ≈ MiceValue(2, [ tan(π), tan(2) ])
 end
-@testset "Update MiceValues, multiple predictive variables" begin
+@testset "Update MiceValues, one imputed value, multiple predictive variables" begin
+    # testing this function relies on assuming that GLM does what we want
     df = DataFrame(
         a = [ 1.0, 2.0, 3.0, 4.0 ], 
-        b = [ 0.5, 5.0, MiceValue(2, [ 0.5, 5.0 ]), 4.0 ], 
-        c = [ 2.0, MiceValue(2, [ 2.0, 2.0 ]), 10.9, 12.0 ]
+        b = [ 0.5, 5.0, missing, 4.0 ], 
+        c = [ 2.0, missing, 10.9, 12.0 ]
     )
-    dfa = DataFrame(
+    rng_a = StableRNG(1)
+    dfa = initializemice(rng_a, 5, df)
+    # new values in column b: [ 4.0, 0.5, 5.0, 5.0, 0.5 ]
+    # new values in column c: [ 2.0, 2.0, 12.0, 10.9, 2.0 ]
+    temptable1 = DataFrame(
         a = [ 1.0, 2.0, 3.0, 4.0 ], 
-        b = [ 0.5, 5.0, MiceValue(2, [ 0.9859979256186087, 3.441250555637871 ]), 4.0 ], 
-        c = [ 2.0, MiceValue(2, [ 2.0, 2.0 ]), 10.9, 12.0 ]
+        b = [ 0.5, 5.0, 4.0, 4.0 ], 
+        c = [ 2.0, 2.0, 10.9, 12.0 ]
     )
-    df2 = deepcopy(df)
-    updatemicevalues!(df2, :b, [ :a, :c ], 2)
-    @test df2 == dfa    
-    df3 = deepcopy(df)
-    updatemicevalues!(df3, "b", [ "a", "c" ], 2)
-    @test df3 == dfa
-    df4 = deepcopy(df)
-    updatemicevalues!(df4, 2, [ 1, 3 ], 2)
-    @test df4 == dfa
-end
-@testset "Update MiceValues, one predictive variable" begin
-    df = DataFrame(
-        a = [ 1.0, 2.0, 3.0, 4.0 ], 
-        b = [ 0.5, 5.0, MiceValue(2, [ 0.5, 5.0 ]), 4.0 ], 
-        c = [ 2.0, MiceValue(2, [ 2.0, 2.0 ]), 10.9, 12.0 ]
-    )
-    dfa = DataFrame(
-        a = [ 1.0, 2.0, 3.0, 4.0 ], 
-        b = [ 0.5, 5.0, MiceValue(2, [ 2.8, 4.1499999999999995 ]), 4.0 ], 
-        c = [ 2.0, MiceValue(2, [ 2.0, 2.0 ]), 10.9, 12.0 ]
-    )
-    df2 = deepcopy(df)
-    updatemicevalues!(df2, :b, :a, 2)
-    @test df2 == dfa    
-    df3 = deepcopy(df)
-    updatemicevalues!(df3, "b", "a", 2)
-    @test df3 == dfa
-    df4 = deepcopy(df)
-    updatemicevalues!(df4, 2, 1, 2)
-    @test df4 == dfa
-end
-@testset "Identify and count those that were previously missing" begin
-    @test wasmissing(MiceValue(2, [ 2.0, 2.0 ]))
-    @test !wasmissing(0)
-    @test wasmissing(missing; warn=false)
-    a = [ 0.0, 1.0, missing, 2.0, missing ]
-    @test sum([ ismissing(ai) for ai ∈ a ]) == 2
-    @test sum([ wasmissing(ai; warn=false) for ai ∈ a ]) == 2
-    b = initializemice(5, a)
-    @test sum([ ismissing(bi) for bi ∈ b ]) == 0
-    @test sum([ wasmissing(bi; warn=false) for bi ∈ b ]) == 2
-    @test strictwasmissing(MiceValue(2, [ 2.0, 2.0 ]))
-    @test !strictwasmissing(0)
-    @test !strictwasmissing(missing)
-end
-@testset "Index values that were previously missing" begin
-    a = [ 0.0, 1.0, missing, 2.0, missing ]
-    @test wasmissingindex(a) == Int[]
-    b = initializemice(5, a)
-    @test wasmissingindex(b) == [ 3, 5 ]
-end
-@testset "View individual sets of values from MiceValues" begin
-    rng = StableRNG(1)
-    a = initializemice(rng, 6, [ 0.0, 1.0, 2.0, missing ])
-    b = initializemice(rng, 6, [ 0, 1, 2, missing ])
-    ra = [ 2.0, 0.0, 1.0, 1.0, 0.0, 0.0 ]
-    rb = [ 0.0, 2.0, 1.0, 0.0, 1.0, 0.0 ]
-    @testset for i ∈ 1:6
-        va = MiceView(a, i)
-        @test va[1] == 0 
-        @test va[4] == ra[i]
-        vb = MiceView(b, i)
-        @test vb[1] == 0 
-        @test vb[4] == rb[i]
+    fla = @formula b ~ 1 + a + c
+    regr1 = fit(LinearModel, fla, temptable1)
+    predictions1 = predict(regr1)
+    dfav1 = imputedtableview(dfa, 1)
+    linearupdatemicevalues!(dfav1, :b, [ :a, :c ])
+    # have the values in dfav1 changed as wanted? 
+    @test dfav1.b[3] == predictions1[3]
+    # and has everything else stayed the same?
+    for i ∈ 1:4, j ∈ 1:3 
+        ismissing(df[i, j]) && continue 
+        @test df[i, j] == dfav1[i, j]
     end 
-    # test for error when try to view values greater than the number of imputed values
-    @test_throws DimensionMismatch MiceView(a, 7)
-    @test_throws DimensionMismatch MiceView(b, 7)
-
-
-#=    v = [ 1.0, MiceValue(5, [ 1.0, 2.0, 3.0, 4.0, 5.0 ]), 5.0 ]
-    @test miceview(v, 1) == [ 1.0, 1.0, 5.0 ]=#
- #=   @test miceview(v, 2) == [ 1.0, 2.0, 5.0 ]
-    df = DataFrame( ; 
-        a=[ 1.0, MiceValue(5, [ 1.0, 2.0, 3.0, 4.0, 5.0 ]), 2.0 ], b=[ 3.0, 4.0, 5.0 ]
+    @test dfav1.c[2] == 2.0
+    # have values in dfa changed as wanted?
+    @test dfa.b[3] == [ predictions1[3], 0.5, 5.0, 5.0, 0.5 ] 
+    # and has everything else stayed the same?
+    for i ∈ 1:4, j ∈ 1:3 
+        ismissing(df[i, j]) && continue 
+        @test df[i, j] == dfa[i, j]
+    end 
+    @test dfa.c[2] == [ 2.0, 2.0, 12.0, 10.9, 2.0 ]
+    temptable2 = DataFrame(
+        a = [ 1.0, 2.0, 3.0, 4.0 ], 
+        b = [ 0.5, 5.0, 0.5, 4.0 ], 
+        c = [ 2.0, 2.0, 10.9, 12.0 ]
     )
-    @test miceview(df, 1) == [
-        1.0  3.0
-        1.0  4.0
-        2.0  5.0
-    ]
-    @test miceview(df, 2) == [
-        1.0  3.0
-        2.0  4.0
-        2.0  5.0
-    ]
-    @test miceview(df, 1, 3) == [
-        1.0  
-        3.0  
-        2.0  
-    ]
-    @test miceview(df, "a", 4) == [
-        1.0  
-        4.0  
-        2.0  
-    ]
-    @test miceview(df, :a, 5) == [
-        1.0  
-        5.0  
-        2.0  
-    ]
-    @test miceview(df, [ :a, :b ], 1) == [
-        1.0  3.0
-        1.0  4.0
-        2.0  5.0
-    ]
-    @test miceview(df, 1:2, 2) == [
-        1.0  3.0
-        2.0  4.0
-        2.0  5.0
-    ]=#
+    regr2 = fit(LinearModel, fla, temptable2)
+    predictions2 = predict(regr2)
+    dfav2 = imputedtableview(dfa, 2)
+    linearupdatemicevalues!(dfav2, :b, [ :a, :c ])
+    # have the values in dfav1 changed as wanted? 
+    @test dfav2.b[3] == predictions2[3]
+    # and has everything else stayed the same?
+    for i ∈ 1:4, j ∈ 1:3 
+        ismissing(df[i, j]) && continue 
+        @test df[i, j] == dfav2[i, j]
+    end 
+    @test dfav2.c[2] == 2.0
+    # have values in dfa changed as wanted?
+    @test dfa.b[3] == [ predictions1[3], predictions2[3], 5.0, 5.0, 0.5 ] 
+    # and has everything else stayed the same?
+    for i ∈ 1:4, j ∈ 1:3 
+        ismissing(df[i, j]) && continue 
+        @test df[i, j] == dfa[i, j]
+    end 
+    @test dfa.c[2] == [ 2.0, 2.0, 12.0, 10.9, 2.0 ]
+    temptable3 = DataFrame(
+        a = [ 1.0, 2.0, 3.0, 4.0 ], 
+        b = [ 0.5, 5.0, 5.0, 4.0 ], 
+        c = [ 2.0, 12.0, 10.9, 12.0 ]
+    )
+    regr3 = fit(LinearModel, fla, temptable3)
+    predictions3 = predict(regr3)
+    dfav3 = imputedtableview(dfa, 3)
+    linearupdatemicevalues!(dfav3, "b", [ "a", "c" ])
+    # have the values in dfav1 changed as wanted? 
+    @test dfav3.b[3] == predictions3[3]
+    # and has everything else stayed the same?
+    for i ∈ 1:4, j ∈ 1:3 
+        ismissing(df[i, j]) && continue 
+        @test df[i, j] == dfav3[i, j]
+    end 
+    @test dfav3.c[2] == 12.0
+    # have values in dfa changed as wanted?
+    @test dfa.b[3] == [ predictions1[3], predictions2[3], predictions3[3], 5.0, 0.5 ] 
+    # and has everything else stayed the same?
+    for i ∈ 1:4, j ∈ 1:3 
+        ismissing(df[i, j]) && continue 
+        @test df[i, j] == dfa[i, j]
+    end 
+    @test dfa.c[2] == [ 2.0, 2.0, 12.0, 10.9, 2.0 ]
+    temptable4 = DataFrame(
+        a = [ 1.0, 2.0, 3.0, 4.0 ], 
+        b = [ 0.5, 5.0, 5.0, 4.0 ], 
+        c = [ 2.0, 10.9, 10.9, 12.0 ]
+    )
+    regr4 = fit(LinearModel, fla, temptable4)
+    predictions4 = predict(regr4)
+    dfav4 = imputedtableview(dfa, 4)
+    linearupdatemicevalues!(dfav4, 2, [ 1, 3 ])
+    # have the values in dfav1 changed as wanted? 
+    @test dfav4.b[3] == predictions4[3]
+    # and has everything else stayed the same?
+    for i ∈ 1:4, j ∈ 1:3 
+        ismissing(df[i, j]) && continue 
+        @test df[i, j] == dfav4[i, j]
+    end 
+    @test dfav4.c[2] == 10.9
+    # have values in dfa changed as wanted?
+    @test dfa.b[3] == [ 
+        predictions1[3], 
+        predictions2[3], 
+        predictions3[3], 
+        predictions4[3], 
+        0.5 
+    ] 
+    # and has everything else stayed the same?
+    for i ∈ 1:4, j ∈ 1:3 
+        ismissing(df[i, j]) && continue 
+        @test df[i, j] == dfa[i, j]
+    end 
+    @test dfa.c[2] == [ 2.0, 2.0, 12.0, 10.9, 2.0 ]
+    # final version included to allow test of `impute`
+    dfav5 = imputedtableview(dfa, 5)
+    linearupdatemicevalues!(dfav5, 2, [ 1, 3 ])
+    rng_a = StableRNG(1)
+    imputeresult1 = impute(rng_a, 5, df, :b, [ :a, :c ], 1)
+    @test imputeresult1 == dfa
+    rng_a = StableRNG(1)
+    imputeresult2 = impute(rng_a, 5, df, "b", [ "a", "c" ], 1)
+    @test imputeresult2 == dfa
+    rng_a = StableRNG(1)
+    imputeresult3 = impute(rng_a, 5, df, 2, [ 1, 3 ], 1)
+    @test imputeresult3 == dfa
+end
+@testset "Update MiceValues, one imputed value, one predictive variable" begin
+    # testing this function relies on assuming that GLM does what we want
+    df = DataFrame(
+        a = [ 1.0, 2.0, 3.0, 4.0 ], 
+        b = [ 0.5, 5.0, missing, 4.0 ], 
+        c = [ 2.0, missing, 10.9, 12.0 ]
+    )
+    rng_a = StableRNG(1)
+    dfa = initializemice(rng_a, 5, df)
+    # new values in column b: [ 4.0, 0.5, 5.0, 5.0, 0.5 ]
+    # new values in column c: [ 2.0, 2.0, 12.0, 10.9, 2.0 ]
+    temptable1 = DataFrame(
+        a = [ 1.0, 2.0, 3.0, 4.0 ], 
+        b = [ 0.5, 5.0, 4.0, 4.0 ], 
+        c = [ 2.0, 2.0, 10.9, 12.0 ]
+    )
+    fla = @formula b ~ 1 + a
+    regr1 = fit(LinearModel, fla, temptable1)
+    predictions1 = predict(regr1)
+    dfav1 = imputedtableview(dfa, 1)
+    linearupdatemicevalues!(dfav1, :b, :a)
+    # have the values in dfav1 changed as wanted? 
+    @test dfav1.b[3] == predictions1[3]
+    # and has everything else stayed the same?
+    for i ∈ 1:4, j ∈ 1:3 
+        ismissing(df[i, j]) && continue 
+        @test df[i, j] == dfav1[i, j]
+    end 
+    @test dfav1.c[2] == 2.0
+    # have values in dfa changed as wanted?
+    @test dfa.b[3] == [ predictions1[3], 0.5, 5.0, 5.0, 0.5 ] 
+    # and has everything else stayed the same?
+    for i ∈ 1:4, j ∈ 1:3 
+        ismissing(df[i, j]) && continue 
+        @test df[i, j] == dfa[i, j]
+    end 
+    @test dfa.c[2] == [ 2.0, 2.0, 12.0, 10.9, 2.0 ]
+    temptable2 = DataFrame(
+        a = [ 1.0, 2.0, 3.0, 4.0 ], 
+        b = [ 0.5, 5.0, 0.5, 4.0 ], 
+        c = [ 2.0, 2.0, 10.9, 12.0 ]
+    )
+    regr2 = fit(LinearModel, fla, temptable2)
+    predictions2 = predict(regr2)
+    dfav2 = imputedtableview(dfa, 2)
+    linearupdatemicevalues!(dfav2, :b, :a)
+    # have the values in dfav1 changed as wanted? 
+    @test dfav2.b[3] == predictions2[3]
+    # and has everything else stayed the same?
+    for i ∈ 1:4, j ∈ 1:3 
+        ismissing(df[i, j]) && continue 
+        @test df[i, j] == dfav2[i, j]
+    end 
+    @test dfav2.c[2] == 2.0
+    # have values in dfa changed as wanted?
+    @test dfa.b[3] == [ predictions1[3], predictions2[3], 5.0, 5.0, 0.5 ] 
+    # and has everything else stayed the same?
+    for i ∈ 1:4, j ∈ 1:3 
+        ismissing(df[i, j]) && continue 
+        @test df[i, j] == dfa[i, j]
+    end 
+    @test dfa.c[2] == [ 2.0, 2.0, 12.0, 10.9, 2.0 ]
+    temptable3 = DataFrame(
+        a = [ 1.0, 2.0, 3.0, 4.0 ], 
+        b = [ 0.5, 5.0, 5.0, 4.0 ], 
+        c = [ 2.0, 12.0, 10.9, 12.0 ]
+    )
+    regr3 = fit(LinearModel, fla, temptable3)
+    predictions3 = predict(regr3)
+    dfav3 = imputedtableview(dfa, 3)
+    linearupdatemicevalues!(dfav3, "b", "a")
+    # have the values in dfav1 changed as wanted? 
+    @test dfav3.b[3] == predictions3[3]
+    # and has everything else stayed the same?
+    for i ∈ 1:4, j ∈ 1:3 
+        ismissing(df[i, j]) && continue 
+        @test df[i, j] == dfav3[i, j]
+    end 
+    @test dfav3.c[2] == 12.0
+    # have values in dfa changed as wanted?
+    @test dfa.b[3] == [ predictions1[3], predictions2[3], predictions3[3], 5.0, 0.5 ] 
+    # and has everything else stayed the same?
+    for i ∈ 1:4, j ∈ 1:3 
+        ismissing(df[i, j]) && continue 
+        @test df[i, j] == dfa[i, j]
+    end 
+    @test dfa.c[2] == [ 2.0, 2.0, 12.0, 10.9, 2.0 ]
+    temptable4 = DataFrame(
+        a = [ 1.0, 2.0, 3.0, 4.0 ], 
+        b = [ 0.5, 5.0, 5.0, 4.0 ], 
+        c = [ 2.0, 10.9, 10.9, 12.0 ]
+    )
+    regr4 = fit(LinearModel, fla, temptable4)
+    predictions4 = predict(regr4)
+    dfav4 = imputedtableview(dfa, 4)
+    linearupdatemicevalues!(dfav4, 2, 1)
+    # have the values in dfav1 changed as wanted? 
+    @test dfav4.b[3] == predictions4[3]
+    # and has everything else stayed the same?
+    for i ∈ 1:4, j ∈ 1:3 
+        ismissing(df[i, j]) && continue 
+        @test df[i, j] == dfav4[i, j]
+    end 
+    @test dfav4.c[2] == 10.9
+    # have values in dfa changed as wanted?
+    @test dfa.b[3] == [ 
+        predictions1[3], 
+        predictions2[3], 
+        predictions3[3], 
+        predictions4[3], 
+        0.5 
+    ] 
+    # and has everything else stayed the same?
+    for i ∈ 1:4, j ∈ 1:3 
+        ismissing(df[i, j]) && continue 
+        @test df[i, j] == dfa[i, j]
+    end 
+    @test dfa.c[2] == [ 2.0, 2.0, 12.0, 10.9, 2.0 ]
+    # final version included to allow test of `impute`
+    dfav5 = imputedtableview(dfa, 5)
+    linearupdatemicevalues!(dfav5, 2, 1)
+    rng_a = StableRNG(1)
+    imputeresult1 = impute(rng_a, 5, df, :b, :a, 1)
+    # cannot test whole table as column :c still has missing values 
+    @test imputeresult1.a == dfa.a
+    @test imputeresult1.b == dfa.b
+    rng_a = StableRNG(1)
+    imputeresult2 = impute(rng_a, 5, df, "b", "a", 1)
+    @test imputeresult2.a == dfa.a
+    @test imputeresult2.b == dfa.b
+    rng_a = StableRNG(1)
+    imputeresult3 = impute(rng_a, 5, df, 2, 1, 1)
+    @test imputeresult3.a == dfa.a
+    @test imputeresult3.b == dfa.b
+end
+@testset "Update MiceValues, multiple imputed values" begin
+    # testing this function relies on assuming that GLM does what we want
+    df = DataFrame(
+        a = [ 1.0, 2.0, 3.0, 4.0 ], 
+        b = [ 0.5, 5.0, missing, 4.0 ], 
+        c = [ 2.0, missing, 10.9, 12.0 ]
+    )
+    rng_a = StableRNG(1)
+    dfa = initializemice(rng_a, 5, df)
+    # this test relies on `linearupdatemicevalues!` working properly -- it was tested above
+    for i ∈ 1:5 
+        dfav = imputedtableview(dfa, i)
+        linearupdatemicevalues!(dfav, :b, [ :a, :c ])
+        linearupdatemicevalues!(dfav, :c, [ :a, :b ])
+    end
+    rng_a = StableRNG(1)
+    imputeresult1 = impute(rng_a, 5, df, [ :b, :c ], :a, 1)
+    rng_a = StableRNG(1)
+    imputeresult2 = impute(rng_a, 5, df, [ "b", "c" ], "a", 1)
+    rng_a = StableRNG(1)
+    imputeresult3 = impute(rng_a, 5, df, 2:3, 1, 1)
+    # answers differ at the 15th decimal point 
+    for i ∈ 1:4, j ∈ 1:3 
+        @test isapprox(imputeresult1[i, j], dfa[i, j]; atol=1e-12)
+        @test isapprox(imputeresult2[i, j], dfa[i, j]; atol=1e-12)
+        @test isapprox(imputeresult3[i, j], dfa[i, j]; atol=1e-12)
+    end
 end
 end  # @testset "SimpleMice.jl"
