@@ -1,34 +1,49 @@
 # contains functions to create imputed data set
 
-initializemice(Ni::Integer, args...) = initializemice(default_rng(), Ni, args...)
-
-function initializemice(rng::AbstractRNG, Ni::Integer, args...)
-    return initializemice(rng, Float64, Ni, args...)
+function initializemice(Ni::Integer, args...; kwargs...)
+    return initializemice(default_rng(), Ni, args...; kwargs...)
 end
 
-function initializemice(T::DataType, Ni::Integer, args...)
-    return initializemice(default_rng(), T, Ni, args...)
+function initializemice(rng::AbstractRNG, Ni::Integer, args...; kwargs...)
+    return initializemice(rng, Float64, Ni, args...; kwargs...)
 end
 
-function initializemice(rng::AbstractRNG, T::DataType, Ni::Integer, v::AbstractVector)
-    return _initializemicevector(rng, T, Ni, v)
-end
-
-function initializemice(rng::AbstractRNG, T::DataType, Ni::Integer, df::DataFrame)
-    return _initializemicedataframe(rng, T, Ni, df)
+function initializemice(T::DataType, Ni::Integer, args...; kwargs...)
+    return initializemice(default_rng(), T, Ni, args...; kwargs...)
 end
 
 function initializemice(
-    rng::AbstractRNG, T::DataType, Ni::Integer, df::DataFrame, columns::Vector{Symbol}
+    rng::AbstractRNG, T::DataType, Ni::Integer, v::AbstractVector; 
+    kwargs...
 )
-    return _initializemicedataframe(rng, T, Ni, df, columns)
+    return _initializemicevector(rng, T, Ni, v; kwargs...)
 end
 
-function initializemice(rng::AbstractRNG, T::DataType, Ni::Integer, df::DataFrame, columns)
-    return _initializemicedataframe(rng, T, Ni, df, _inputsymbolvector(df, columns))
+function initializemice(
+    rng::AbstractRNG, T::DataType, Ni::Integer, df::DataFrame ; 
+    kwargs...
+)
+    return _initializemicedataframe(rng, T, Ni, df; kwargs...)
 end
 
-function _initializemicevector(rng, T, Ni, v)
+function initializemice(
+    rng::AbstractRNG, T::DataType, Ni::Integer, df::DataFrame, columns::Vector{Symbol}; 
+    kwargs...
+)
+    return _initializemicedataframe(rng, T, Ni, df, columns; kwargs...)
+end
+
+function initializemice(
+    rng::AbstractRNG, T::DataType, Ni::Integer, df::DataFrame, columns; 
+    kwargs...
+)
+    return _initializemicedataframe(
+        rng, T, Ni, df, _inputsymbolvector(df, columns); 
+        kwargs...
+    )
+end
+
+function _initializemicevector(rng, T, Ni, v; staticthresh=100)
     nmvector = collect(skipmissing(v))
     @assert length(nmvector) >= 1 "Must have at least 1 non-missing value"
     S = typeof(nmvector[1])
@@ -36,19 +51,19 @@ function _initializemicevector(rng, T, Ni, v)
     Np = Ni * Nm 
     if Np == 0 
         return v
-    elseif Np < 100 
+    elseif Np < staticthresh 
         return _initializemicestatic(rng, Ni, Nm, Np, S, T, v, nmvector)
     else 
         return _initializemicenotstatic(rng, Ni, Nm, Np, S, T, v, nmvector)
     end
 end
 
-function _initializemicedataframe(rng, T, Ni, df)
+function _initializemicedataframe(rng, T, Ni, df; kwargs...)
     columns = Symbol.(names(df))
-    return _initializemicedataframe(rng, T, Ni, df, columns)
+    return _initializemicedataframe(rng, T, Ni, df, columns; kwargs...)
 end
 
-function _initializemicedataframe(rng, T, Ni, df, columns)
+function _initializemicedataframe(rng, T, Ni, df, columns; kwargs...)
     columnnames = Symbol.(names(df))
     columntypes = Vector{Type}(undef, length(columnnames))                 
     unchangedvectors::Dict{Symbol, Vector} = Dict()
@@ -57,7 +72,7 @@ function _initializemicedataframe(rng, T, Ni, df, columns)
     size1 = size(df, 1)
     for (j, name) ∈ enumerate(columnnames) 
         if name ∈ columns
-            vnew = _initializemicevector(rng, T, Ni, getproperty(df, name))
+            vnew = _initializemicevector(rng, T, Ni, getproperty(df, name); kwargs...)
             _pushinitializemice!(
                 unchangedvectors, imputedmstaticvectors, imputedvectors, name, vnew
             )
@@ -107,11 +122,11 @@ function _initializemicenotstatic(rng, Ni, Nm, Np, S, T, v, nmvector)
     )
 end
 
-function linearupdatemicevalues!(table::ImputedTableView, y::Symbol, x::Vector{Symbol}; kwargs...)
+function linearupdatemicevalues!(table::ImputedTableView, y::Symbol, x::Vector{Symbol})
     _linearupdatemicevalues_tableview!(table, y, x)
 end
 
-function linearupdatemicevalues!(table::ImputedTableView, y, x; kwargs...)
+function linearupdatemicevalues!(table::ImputedTableView, y, x)
     _linearupdatemicevalues_tableview!(
         table, _inputsymbol(table, y), _inputsymbolvector(table, x)
     )
@@ -270,13 +285,20 @@ function impute(
     df::DataFrame, 
     iteratevars::Vector{Symbol}, 
     includevars::Vector{Symbol}, 
-    iterations::Integer
+    iterations::Integer; 
+    kwargs...
 )
-    return _impute(rng, T, Ni, df, iteratevars, includevars, iterations) 
+    return _impute(rng, T, Ni, df, iteratevars, includevars, iterations; kwargs...) 
 end
 
-function _impute(rng, T, Ni, df, iteratevars, includevars, iterations; multithread=true)
-    table = _initializemicedataframe(rng, T, Ni, df, [ iteratevars; includevars ])
+function _impute(
+    rng, T, Ni, df, iteratevars, includevars, iterations; 
+    multithread=true, staticthresh=100
+)
+    table = _initializemicedataframe(
+        rng, T, Ni, df, [ iteratevars; includevars ]; 
+        staticthresh
+    )
     _linearupdatemicevalues_wholetable!(
         table, iteratevars, includevars, iterations; 
         multithread

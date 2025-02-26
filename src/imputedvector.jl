@@ -5,19 +5,19 @@ abstract type AbstractImputedVector{Ni, S, T} <: AbstractVector{S} end  # not ex
 
 struct ImputedVectorMStatic{Ni, Nm, Np, S, T} <: AbstractImputedVector{Ni, S, T}  # not exported
     original                    :: Vector{<:Union{Missing, S}} 
-    missingindex                :: SVector{Nm, Int64}
+    missingindex                :: SVector{Nm, Int}
     imputedvalues               :: MMatrix{Nm, Ni, T, Np} 
 end
 
 struct ImputedVectorStatic{Ni, Nm, Np, S, T} <: AbstractImputedVector{Ni, S, T}  # not exported
     original                    :: Vector{<:Union{Missing, S}} 
-    missingindex                :: SVector{Nm, Int64}
+    missingindex                :: SVector{Nm, Int}
     imputedvalues               :: SMatrix{Nm, Ni, T, Np} 
 end
 
 struct ImputedVector{Ni, Nm, Np, S, T} <: AbstractImputedVector{Ni, S, T}  # not exported
     original                    :: Vector{<:Union{Missing, S}}
-    missingindex                :: Vector{Int64}
+    missingindex                :: Vector{Int}
     imputedvalues               :: Matrix{T} 
 end
 

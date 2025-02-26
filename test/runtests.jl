@@ -623,4 +623,30 @@ end
         @test isapprox(imputeresult2[i, j], imputeresult3[i, j]; atol=1e-12)
     end
 end
+@testset "Effect of `staticthresh` keyword" begin
+    df = DataFrame(
+        a = [ 1.0, 2.0, 3.0, 4.0 ], 
+        b = [ 0.5, 5.0, missing, 4.0 ], 
+        c = [ 2.0, missing, 10.9, 12.0 ]
+    )
+    rng_a = StableRNG(1)
+    imputeresult1 = impute(rng_a, 5, df, [ :b, :c ], :a, 1)
+    rng_a = StableRNG(1)
+    imputeresult2 = impute(rng_a, 5, df, [ :b, :c ], :a, 1; staticthresh=0)
+    rng_a = StableRNG(1)
+    imputeresult3 = impute(rng_a, 5, df, [ :b, :c ], :a, 1; staticthresh=3)
+    rng_a = StableRNG(1)
+    imputeresult4 = impute(rng_a, 5, df, [ :b, :c ], :a, 1; staticthresh=500)
+    # staticthresh keyword does not affect outcome
+    for i ∈ 1:4, j ∈ 1:3 
+        @test isapprox(imputeresult1[i, j], imputeresult2[i, j]; atol=1e-12)
+        @test isapprox(imputeresult2[i, j], imputeresult3[i, j]; atol=1e-12)
+        @test isapprox(imputeresult3[i, j], imputeresult4[i, j]; atol=1e-12)
+    end
+    # staticthresh keyword does affect type of output 
+    @test imputeresult1.b isa SimpleMice.ImputedVectorMStatic
+    @test imputeresult2.b isa SimpleMice.ImputedVector
+    @test imputeresult3.b isa SimpleMice.ImputedVector
+    @test imputeresult4.b isa SimpleMice.ImputedVectorMStatic
+end
 end  # @testset "SimpleMice.jl"
