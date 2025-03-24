@@ -49,7 +49,7 @@ function summary(t::ImputedTable{Ni}) where Ni
     return "$(size(t, 1))×$(size(t, 2)) ImputedTable with $Ni imputations"
 end
 
-_returnimputedtableni(t::ImputedTable{Ni}) where Ni = Ni
+_returnimputedtableni(::ImputedTable{Ni}) where Ni = Ni
 
 function show(
     io::IO, t::ImputedTable; 

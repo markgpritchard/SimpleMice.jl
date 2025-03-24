@@ -51,8 +51,6 @@ using StableRNGs
     end
     # assertion error if no non-missing values 
     @test_throws AssertionError initializemice(1, [ missing ])
-    # dimension mismatch error if wrong number of values passed 
-    #@test_throws DimensionMismatch MiceValue(5, [ 1, 2, 1 ]) 
 end  
 @testset "Convert missing values in a DataFrame into `Mice` values" begin
     @testset "DataFrame with no missing values" begin

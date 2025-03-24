@@ -20,7 +20,7 @@ function initializemice(
 end
 
 function initializemice(
-    rng::AbstractRNG, T::DataType, Ni::Integer, df::DataFrame ; 
+    rng::AbstractRNG, T::DataType, Ni::Integer, df::DataFrame; 
     kwargs...
 )
     return _initializemicedataframe(rng, T, Ni, df; kwargs...)
