@@ -51,6 +51,14 @@ using StableRNGs
     end
     # assertion error if no non-missing values 
     @test_throws AssertionError initializemice(1, [ missing ])
+    @testset "count numbers imputed" begin
+        @test nimputed(ones(2)) == 0 
+        rng = StableRNG(1)
+        a = initializemice(rng, 10, [ 0, 1, 2, missing ])
+        @test nimputed(a) == 1
+        b = initializemice(rng, 10, [ 0, missing, 2, missing ])
+        @test nimputed(b) == 2
+    end
 end  
 @testset "Convert missing values in a DataFrame into `Mice` values" begin
     @testset "DataFrame with no missing values" begin
@@ -276,6 +284,11 @@ end
     @test dfav2.b == [ 3, 4, 5 ]
     @test_throws AssertionError imputedtableview(dfa, 0)
     @test_throws AssertionError imputedtableview(dfa, 6)
+    @testset "count numbers imputed" begin
+        @test nimputed(imputedvectorview(v, 1)) == 1
+        v2 = initializemice(rng_a, 5, [ 1, missing, 5, missing ])
+        @test nimputed(imputedvectorview(v2, 2)) == 2
+    end
 end
 @testset "Created ImputedTableViewMatrix" begin
     df = DataFrame(
@@ -302,7 +315,6 @@ end
         @test dfaM[i] == M1[i]
     end
 end
-
 @testset "Update MiceValues, one imputed value, multiple predictive variables" begin
     # testing this function relies on assuming that GLM does what we want
     df = DataFrame(
@@ -669,5 +681,31 @@ end
         var([ 1, 1, 5, 3])        
     ]
     @test var(v) == 3.766666666666666
+end
+@testset "View vector of imputed table matrices" begin
+    df = DataFrame(
+        a = [ 1.0, 2.0, 3.0, 4.0 ], 
+        b = [ 0.5, 5.0, missing, 4.0 ], 
+        c = [ 2.0, missing, 10.9, 12.0 ]
+    )
+    rng = StableRNG(1)
+    imputeresult = impute(rng, 5, df, [ :b, :c ], :a, 1)
+    a1 = vectorimputedtableviewmatrix(imputeresult, [ :a, :b ])    
+    a2 = vectorimputedtableviewmatrix(imputeresult, 1:2) 
+    a3 = vectorimputedtableviewmatrix(imputeresult, [ :a, :b ], 1:5)  
+    a4 = vectorimputedtableviewmatrix(imputeresult, 2:3) 
+    a5 = vectorimputedtableviewmatrix(imputeresult, [ :a, :b ], 1:3)  
+    @test a1 == a2
+    @test a1 == a3
+    @test a1 != a4 
+    @test a1 != a5
+    @test_throws AssertionError vectorimputedtableviewmatrix(imputeresult, [ :a, :b ], 1:6) 
+    @test length(a1) == 5
+    @test size(a1) == ( 5, )
+    @test length(a5) == 3
+    @test size(a5) == ( 3, )
+    m1 = imputedtableviewmatrix(imputeresult, [ :a, :b ], 1) 
+    @test m1 == a1[1]
+    @test m1 != a1[2]
 end
 end  # @testset "SimpleMice.jl"

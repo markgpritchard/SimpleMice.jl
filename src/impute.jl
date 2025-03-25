@@ -163,9 +163,9 @@ function _linearupdatemicevalues_tableview!(tableview, y, x)
     b = getcolumn(tableview, y)
     prob = LinearProblem(A, b)
     sol = solve(prob, LinearSolve.KrylovJL_LSMR())
-    predictions = A * sol
+    preds = A * sol
     for (i, j) ∈ enumerate(getproperty(tableview.originaltable, y).missingindex)
-        getproperty(tableview.originaltable, y).imputedvalues[i, tableview.index] = predictions[j]
+        getproperty(tableview.originaltable, y).imputedvalues[i, tableview.index] = preds[j]
     end
 end
 

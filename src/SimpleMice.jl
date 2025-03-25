@@ -23,20 +23,35 @@ import Base:
     size, 
     sum,
     summary
+import DataAPI: describe
 import Krylov: ktypeof
-import StatsBase: mean, var
-import Tables: AbstractColumns, columnnames, getcolumn, istable, schema
+import StatsBase: 
+    mean, 
+    quantile, 
+    var
+import Tables: 
+    AbstractColumns, 
+    columnnames, 
+    getcolumn, 
+    istable, 
+    schema
 
 export 
+    ## functions imported from DataAPI 
+    describe, 
     ## functions imported from StatsBase 
     mean,
+    quantile, 
     var,
     ## imputedvectorview.jl
     imputedvectorview,
+    ## imputedtable.jl
+    getcolumn,
     ## imputedtableview.jl
     imputedtableview,
     ## imputedtableviewmatrix.jl 
     imputedtableviewmatrix,
+    vectorimputedtableviewmatrix,
     ## imputedoutput.jl
     summaryimputedoutput,
     ## functions.jl
@@ -48,8 +63,14 @@ export
     ## rubinsrules.jl
     elementmean,
     elementvar,
-    rubinsvar
+    rubinsvar,
+    ## description.jl
+    nimputed,
+    ## linearsolve.jl
+    linearsolveimputedvector,
+    linearsolveimputedvectorelements
 
+include("consts.jl")
 include("imputedvector.jl")
 include("imputedvectorview.jl")
 include("imputedtable.jl")
@@ -59,5 +80,7 @@ include("imputedoutput.jl")
 include("functions.jl")
 include("impute.jl")
 include("rubinsrules.jl")
+include("description.jl")
+include("linearsolve.jl")
 
 end  # module SimpleMice
