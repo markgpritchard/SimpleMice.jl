@@ -1,7 +1,7 @@
 
 module SimpleMice
 
-using GLM, StaticArrays, StatsBase
+using LinearSolve, StaticArrays, StatsBase
 using Base.Threads: @threads
 using AutoHashEquals: @auto_hash_equals
 using DataFrames: DataFrame
@@ -23,6 +23,7 @@ import Base:
     size, 
     sum,
     summary
+import Krylov: ktypeof
 import StatsBase: mean, var
 import Tables: AbstractColumns, columnnames, getcolumn, istable, schema
 
@@ -34,6 +35,8 @@ export
     imputedvectorview,
     ## imputedtableview.jl
     imputedtableview,
+    ## imputedtableviewmatrix.jl 
+    imputedtableviewmatrix,
     ## imputedoutput.jl
     summaryimputedoutput,
     ## functions.jl
@@ -51,6 +54,7 @@ include("imputedvector.jl")
 include("imputedvectorview.jl")
 include("imputedtable.jl")
 include("imputedtableview.jl")
+include("imputedtableviewmatrix.jl")
 include("imputedoutput.jl")
 include("functions.jl")
 include("impute.jl")

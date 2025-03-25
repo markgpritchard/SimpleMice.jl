@@ -17,11 +17,20 @@ end
 imputedtableview(originaltable, index) = ImputedTableView(originaltable, index)
 
 function _imputedtableviewtypes(originaltable::ImputedTable) 
+    return _imputedtableviewtypes(originaltable, originaltable.columnnames) 
+end
+
+function _imputedtableviewtypes(originaltable::ImputedTable, columns::AbstractVector{<:Int}) 
+    colnames = originaltable.columnnames[columns]
+    return _imputedtableviewtypes(originaltable, colnames) 
+end
+
+function _imputedtableviewtypes(originaltable::ImputedTable, colnames::Vector{Symbol}) 
     return [
         haskey(originaltable.unchangedvectors, name) ?
             originaltable.columntypes[i] :
             _imputedtableviewtypes(originaltable.columntypes[i])
-        for (i, name) ∈ enumerate(originaltable.columnnames)
+        for (i, name) ∈ enumerate(colnames)
     ]
 end
 

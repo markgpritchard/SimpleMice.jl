@@ -12,7 +12,7 @@ function ImputedVectorView(
     imputedvector::AbstractImputedVector{Ni, S, T}, index::Int
 ) where {Ni, S, T}
     @assert index <= Ni "Index, $index, must be no more than Ni, $Ni"
-    @assert index > 0 "Index must be positive"
+    @assert index > 0 "Index, $index, must be positive"
     combinedtype = typeof(one(S) + one(T))
     return ImputedVectorView{combinedtype, typeof(imputedvector)}(imputedvector, index)
 end

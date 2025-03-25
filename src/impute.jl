@@ -158,15 +158,14 @@ function linearupdatemicevalues!(
     )
 end
 
-function _linearupdatemicevalues_tableview!(table, y, x)
-    lhs = Term(y)
-    rhsterm = Term.(x)
-    rhs = ( ConstantTerm(1), rhsterm... )
-    formula = FormulaTerm(lhs, rhs)
-    regr = fit(LinearModel, formula, table)
-    predictions = predict(regr)
-    for (i, j) ∈ enumerate(getproperty(table.originaltable, y).missingindex)
-        getproperty(table.originaltable, y).imputedvalues[i, table.index] = predictions[j]
+function _linearupdatemicevalues_tableview!(tableview, y, x)
+    A = imputedtableviewmatrix(tableview, x)
+    b = getcolumn(tableview, y)
+    prob = LinearProblem(A, b)
+    sol = solve(prob, LinearSolve.KrylovJL_LSMR())
+    predictions = A * sol
+    for (i, j) ∈ enumerate(getproperty(tableview.originaltable, y).missingindex)
+        getproperty(tableview.originaltable, y).imputedvalues[i, tableview.index] = predictions[j]
     end
 end
 
@@ -305,3 +304,5 @@ function _impute(
     )
     return table 
 end
+
+ktypeof(::AbstractImputedVectorView{S}) where S = Vector{S}
