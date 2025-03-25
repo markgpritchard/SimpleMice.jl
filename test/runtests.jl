@@ -319,7 +319,7 @@ end
         b = [ 0.5, 5.0, 4.0, 4.0 ], 
         c = [ 2.0, 2.0, 10.9, 12.0 ]
     )
-    fla = @formula b ~ a + c
+    fla = @formula b ~ a + c + 0
     regr1 = fit(LinearModel, fla, temptable1)
     predictions1 = predict(regr1)
     dfav1 = imputedtableview(dfa, 1)
@@ -328,7 +328,7 @@ end
     end 
     linearupdatemicevalues!(dfav1, :b, [ :a, :c ])
     # have the values in dfav1 changed as wanted? 
-    @test isapprox(dfav1.b[3], predictions1[3]; rtol=0.1)
+    @test isapprox(dfav1.b[3], predictions1[3])
     # and has everything else stayed the same?
     for i ∈ 1:4, j ∈ 1:3 
         ismissing(df[i, j]) && continue 
@@ -336,7 +336,7 @@ end
     end 
     @test dfav1.c[2] == 2.0
     # have values in dfa changed as wanted?
-    @test isapprox(dfa.b[3], [ predictions1[3], 0.5, 5.0, 5.0, 0.5 ]; rtol=0.1)
+    @test isapprox(dfa.b[3], [ predictions1[3], 0.5, 5.0, 5.0, 0.5 ])
     # and has everything else stayed the same?
     for i ∈ 1:4, j ∈ 1:3 
         ismissing(df[i, j]) && continue 
@@ -356,7 +356,7 @@ end
     end 
     linearupdatemicevalues!(dfav2, :b, [ :a, :c ])
     # have the values in dfav1 changed as wanted? 
-    @test isapprox(dfav2.b[3], predictions2[3]; rtol=0.1)
+    @test isapprox(dfav2.b[3], predictions2[3])
     # and has everything else stayed the same?
     for i ∈ 1:4, j ∈ 1:3 
         ismissing(df[i, j]) && continue 
@@ -364,7 +364,7 @@ end
     end 
     @test dfav2.c[2] == 2.0
     # have values in dfa changed as wanted?
-    @test isapprox(dfa.b[3], [ predictions1[3], predictions2[3], 5.0, 5.0, 0.5 ]; rtol=0.1)
+    @test isapprox(dfa.b[3], [ predictions1[3], predictions2[3], 5.0, 5.0, 0.5 ])
     # and has everything else stayed the same?
     for i ∈ 1:4, j ∈ 1:3 
         ismissing(df[i, j]) && continue 
@@ -384,7 +384,7 @@ end
     end 
     linearupdatemicevalues!(dfav3, "b", [ "a", "c" ])
     # have the values in dfav1 changed as wanted? 
-    @test isapprox(dfav3.b[3], predictions3[3]; rtol=0.1)
+    @test isapprox(dfav3.b[3], predictions3[3])
     # and has everything else stayed the same?
     for i ∈ 1:4, j ∈ 1:3 
         ismissing(df[i, j]) && continue 
@@ -415,7 +415,7 @@ end
     end 
     linearupdatemicevalues!(dfav4, 2, [ 1, 3 ])
     # have the values in dfav1 changed as wanted? 
-    @test isapprox(dfav4.b[3], predictions4[3]; rtol=0.1)
+    @test isapprox(dfav4.b[3], predictions4[3])
     # and has everything else stayed the same?
     for i ∈ 1:4, j ∈ 1:3 
         ismissing(df[i, j]) && continue 
@@ -469,7 +469,7 @@ end
     dfav1 = imputedtableview(dfa, 1)
     linearupdatemicevalues!(dfav1, :b, :a)
     # have the values in dfav1 changed as wanted? 
-    @test isapprox(dfav1.b[3], predictions1[3]; rtol=0.1)
+    @test isapprox(dfav1.b[3], predictions1[3])
     # and has everything else stayed the same?
     for i ∈ 1:4, j ∈ 1:3 
         ismissing(df[i, j]) && continue 
@@ -477,7 +477,7 @@ end
     end 
     @test dfav1.c[2] == 2.0
     # have values in dfa changed as wanted?
-    @test isapprox(dfa.b[3], [ predictions1[3], 0.5, 5.0, 5.0, 0.5 ]; rtol=0.1)
+    @test isapprox(dfa.b[3], [ predictions1[3], 0.5, 5.0, 5.0, 0.5 ])
     # and has everything else stayed the same?
     for i ∈ 1:4, j ∈ 1:3 
         ismissing(df[i, j]) && continue 
@@ -494,7 +494,7 @@ end
     dfav2 = imputedtableview(dfa, 2)
     linearupdatemicevalues!(dfav2, :b, :a)
     # have the values in dfav1 changed as wanted? 
-    @test isapprox(dfav2.b[3], predictions2[3]; rtol=0.1)
+    @test isapprox(dfav2.b[3], predictions2[3])
     # and has everything else stayed the same?
     for i ∈ 1:4, j ∈ 1:3 
         ismissing(df[i, j]) && continue 
@@ -502,7 +502,7 @@ end
     end 
     @test dfav2.c[2] == 2.0
     # have values in dfa changed as wanted?
-    @test isapprox(dfa.b[3], [ predictions1[3], predictions2[3], 5.0, 5.0, 0.5 ]; rtol=0.1)
+    @test isapprox(dfa.b[3], [ predictions1[3], predictions2[3], 5.0, 5.0, 0.5 ])
     # and has everything else stayed the same?
     for i ∈ 1:4, j ∈ 1:3 
         ismissing(df[i, j]) && continue 
@@ -519,7 +519,7 @@ end
     dfav3 = imputedtableview(dfa, 3)
     linearupdatemicevalues!(dfav3, "b", "a")
     # have the values in dfav1 changed as wanted? 
-    @test isapprox(dfav3.b[3], predictions3[3]; rtol=0.1)
+    @test isapprox(dfav3.b[3], predictions3[3])
     # and has everything else stayed the same?
     for i ∈ 1:4, j ∈ 1:3 
         ismissing(df[i, j]) && continue 
@@ -547,7 +547,7 @@ end
     dfav4 = imputedtableview(dfa, 4)
     linearupdatemicevalues!(dfav4, 2, 1)
     # have the values in dfav1 changed as wanted? 
-    @test isapprox(dfav4.b[3], predictions4[3]; rtol=0.1)
+    @test isapprox(dfav4.b[3], predictions4[3])
     # and has everything else stayed the same?
     for i ∈ 1:4, j ∈ 1:3 
         ismissing(df[i, j]) && continue 
