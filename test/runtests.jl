@@ -1,8 +1,16 @@
 
 using SimpleMice
 using Test
-using DataFrames, GLM
+using DataFrames, GLM, StatsBase
 using StableRNGs
+
+function testexampledf() 
+    return DataFrame(
+        a = [ 1.0, 2.0, 3.0, 4.0 ], 
+        b = [ 0.5, 5.0, missing, 4.0 ], 
+        c = [ 2.0, missing, 10.9, 12.0 ]
+    )
+end
 
 @testset "SimpleMice.jl" begin
 @testset "Convert missing values into `Mice` values" begin
@@ -49,8 +57,9 @@ using StableRNGs
         b = initializemice(rng_b, 10, [ 0, 1, 2, missing ])        
         @test a != b
     end
-    # assertion error if no non-missing values 
-    @test_throws AssertionError initializemice(1, [ missing ])
+    @testset "assertion error if no non-missing values" begin       
+        @test_throws AssertionError initializemice(1, [ missing ])
+    end
     @testset "count numbers imputed" begin
         @test nimputed(ones(2)) == 0 
         rng = StableRNG(1)
@@ -291,11 +300,7 @@ end
     end
 end
 @testset "Created ImputedTableViewMatrix" begin
-    df = DataFrame(
-        a = [ 1.0, 2.0, 3.0, 4.0 ], 
-        b = [ 0.5, 5.0, missing, 4.0 ], 
-        c = [ 2.0, missing, 10.9, 12.0 ]
-    )
+    df = testexampledf() 
     rng_a = StableRNG(1)
     dfa = initializemice(rng_a, 5, df)
     @test SimpleMice._colindexes(dfa, [ :b, :c ]) == [ 2, 3 ]
@@ -317,11 +322,7 @@ end
 end
 @testset "Update MiceValues, one imputed value, multiple predictive variables" begin
     # testing this function relies on assuming that GLM does what we want
-    df = DataFrame(
-        a = [ 1.0, 2.0, 3.0, 4.0 ], 
-        b = [ 0.5, 5.0, missing, 4.0 ], 
-        c = [ 2.0, missing, 10.9, 12.0 ]
-    )
+    df = testexampledf() 
     rng_a = StableRNG(1)
     dfa = initializemice(rng_a, 5, df)
     # expected new values in column b: [ 4.0, 0.5, 5.0, 5.0, 0.5 ]
@@ -461,11 +462,7 @@ end
 end
 @testset "Update MiceValues, one imputed value, one predictive variable" begin
     # testing this function relies on assuming that GLM does what we want
-    df = DataFrame(
-        a = [ 1.0, 2.0, 3.0, 4.0 ], 
-        b = [ 0.5, 5.0, missing, 4.0 ], 
-        c = [ 2.0, missing, 10.9, 12.0 ]
-    )
+    df = testexampledf() 
     rng_a = StableRNG(1)
     dfa = initializemice(rng_a, 5, df)
     # new values in column b: [ 4.0, 0.5, 5.0, 5.0, 0.5 ]
@@ -597,11 +594,7 @@ end
 end
 @testset "Update MiceValues, multiple imputed values" begin
     # testing this function relies on assuming that GLM does what we want
-    df = DataFrame(
-        a = [ 1.0, 2.0, 3.0, 4.0 ], 
-        b = [ 0.5, 5.0, missing, 4.0 ], 
-        c = [ 2.0, missing, 10.9, 12.0 ]
-    )
+    df = testexampledf() 
     rng_a = StableRNG(1)
     dfa = initializemice(rng_a, 5, df)
     # this test relies on `linearupdatemicevalues!` working properly -- it was tested above
@@ -624,11 +617,7 @@ end
     end
 end
 @testset "Multithread argument does not change output" begin
-    df = DataFrame(
-        a = [ 1.0, 2.0, 3.0, 4.0 ], 
-        b = [ 0.5, 5.0, missing, 4.0 ], 
-        c = [ 2.0, missing, 10.9, 12.0 ]
-    )
+    df = testexampledf() 
     rng_a = StableRNG(1)
     imputeresult1 = impute(rng_a, 5, df, [ :b, :c ], :a, 1)
     rng_a = StableRNG(1)
@@ -641,11 +630,7 @@ end
     end
 end
 @testset "Effect of `staticthresh` keyword" begin
-    df = DataFrame(
-        a = [ 1.0, 2.0, 3.0, 4.0 ], 
-        b = [ 0.5, 5.0, missing, 4.0 ], 
-        c = [ 2.0, missing, 10.9, 12.0 ]
-    )
+    df = testexampledf() 
     rng_a = StableRNG(1)
     imputeresult1 = impute(rng_a, 5, df, [ :b, :c ], :a, 1)
     rng_a = StableRNG(1)
@@ -683,11 +668,7 @@ end
     @test var(v) == 3.766666666666666
 end
 @testset "View vector of imputed table matrices" begin
-    df = DataFrame(
-        a = [ 1.0, 2.0, 3.0, 4.0 ], 
-        b = [ 0.5, 5.0, missing, 4.0 ], 
-        c = [ 2.0, missing, 10.9, 12.0 ]
-    )
+    df = testexampledf() 
     rng = StableRNG(1)
     imputeresult = impute(rng, 5, df, [ :b, :c ], :a, 1)
     a1 = vectorimputedtableviewmatrix(imputeresult, [ :a, :b ])    
@@ -707,5 +688,42 @@ end
     m1 = imputedtableviewmatrix(imputeresult, [ :a, :b ], 1) 
     @test m1 == a1[1]
     @test m1 != a1[2]
+end
+@testset "Passing `mean` keyword to `var` does not give incorrect results" begin
+    # `StatsBase.summarystats` passes a `mean` value to `std`. Check that variance when
+    # using that equals the value calculated by Rubin's rules without that.
+    df = testexampledf() 
+    rng = StableRNG(1)
+    imputeresult = impute(rng, 5, df, [ :b, :c ], :a, 1)
+    @testset "Use of `mean` keyword by `summarystats` does not change result" begin
+        @test std(imputeresult.b) == summarystats(imputeresult.b).sd
+    end
+    @testset "Use of `mean` keyword with incorrect value throws an error" begin
+        m = mean(imputeresult.b)
+        @test_throws AssertionError std(imputeresult.b; mean=(m + 1))
+    end
+end
+@testset "Structs for imputed results return the raw values" begin
+    df = testexampledf() 
+    rng = StableRNG(1)
+    imputeresult = impute(rng, 5, df, [ :b, :c ], :a, 1)
+    ms = imputedmean(imputeresult.b)
+    me = elementmean(imputeresult.b)
+    m = mean(imputeresult.b)
+    @test elementmean(ms) == me 
+    @test mean(me) == m
+    @test mean(ms) == m
+    vs = imputedvar(imputeresult.b)
+    ve = elementvar(imputeresult.b)
+    vr = rubinsvar(5, me, ve)
+    v = var(imputeresult.b)
+    v2 = var(imputeresult.b; mean=m)
+    v3 = var(imputeresult.b; mean=ms)
+    @test elementmean(vs) == me 
+    @test mean(vs) == m
+    @test elementvar(vs) == ve 
+    @test var(vs) == v 
+    @test v == v2 
+    @test v2 == v3
 end
 end  # @testset "SimpleMice.jl"

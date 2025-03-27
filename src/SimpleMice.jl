@@ -41,7 +41,6 @@ export
     describe, 
     ## functions imported from StatsBase 
     mean,
-    quantile, 
     var,
     ## imputedvectorview.jl
     imputedvectorview,
@@ -52,8 +51,6 @@ export
     ## imputedtableviewmatrix.jl 
     imputedtableviewmatrix,
     vectorimputedtableviewmatrix,
-    ## imputedoutput.jl
-    summaryimputedoutput,
     ## functions.jl
     nonemissing,
     ## impute.jl
@@ -63,6 +60,8 @@ export
     ## rubinsrules.jl
     elementmean,
     elementvar,
+    imputedmean,
+    imputedvar,
     rubinsvar,
     ## description.jl
     nimputed,
@@ -76,7 +75,6 @@ include("imputedvectorview.jl")
 include("imputedtable.jl")
 include("imputedtableview.jl")
 include("imputedtableviewmatrix.jl")
-include("imputedoutput.jl")
 include("functions.jl")
 include("impute.jl")
 include("rubinsrules.jl")
