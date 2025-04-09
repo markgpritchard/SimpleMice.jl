@@ -64,6 +64,7 @@ export
     imputedvar,
     rubinsvar,
     ## description.jl
+    isimputedvalue,
     nimputed,
     ## linearsolve.jl
     linearsolveimputedvector,

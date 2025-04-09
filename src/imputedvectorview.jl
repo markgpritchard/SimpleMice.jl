@@ -6,15 +6,15 @@ abstract type AbstractImputedVectorView{S} <: AbstractVector{S} end
 @auto_hash_equals struct ImputedVectorView{S, T} <: AbstractImputedVectorView{S}
     imputedvector               :: T
     index                       :: Int
-end
 
-function ImputedVectorView(
-    imputedvector::AbstractImputedVector{Ni, S, T}, index::Int
-) where {Ni, S, T}
-    @assert index <= Ni "Index, $index, must be no more than Ni, $Ni"
-    @assert index > 0 "Index, $index, must be positive"
-    combinedtype = typeof(one(S) + one(T))
-    return ImputedVectorView{combinedtype, typeof(imputedvector)}(imputedvector, index)
+    function ImputedVectorView(
+        imputedvector::AbstractImputedVector{Ni, S, T}, index
+    ) where {Ni, S, T}
+        @assert index <= Ni "Index, $index, must be no more than Ni, $Ni"
+        @assert index > 0 "Index, $index, must be positive"
+        combinedtype = typeof(one(S) + one(T))
+        return new{combinedtype, typeof(imputedvector)}(imputedvector, index)
+    end
 end
 
 function imputedvectorview(imputedvector::AbstractImputedVector, index::Int)
@@ -42,11 +42,11 @@ end
 iterate(::AbstractImputedVectorView, ::Nothing) = nothing
 
 function getindex(v::ImputedVectorView{S, T}, i::Integer) where {S, T}
-    if i ∈ v.imputedvector.missingindex
+    if isimputedvalue(v, i)
         j = findfirst(x -> x == i, v.imputedvector.missingindex)
-        return S(v.imputedvector.imputedvalues[j, v.index])
+        return S(getindex(v.imputedvector, i)[v.index])
     else
-        return S(v.imputedvector.original[i])
+        return S(getindex(v.imputedvector, i))
     end
 end
 

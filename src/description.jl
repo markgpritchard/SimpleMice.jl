@@ -1,10 +1,11 @@
 # functions to describe imputed data
 
-nimputed(::ImputedVectorMStatic{Ni, Nm, Np, S, T}) where {Ni, Nm, Np, S, T} = Nm
-nimputed(::ImputedVectorStatic{Ni, Nm, Np, S, T}) where {Ni, Nm, Np, S, T} = Nm
-nimputed(::ImputedVector{Ni, Nm, Np, S, T}) where {Ni, Nm, Np, S, T} = Nm
+nimputed(v::AbstractImputedVector) = v.Nm
 nimputed(v::AbstractImputedVectorView) = nimputed(v.imputedvector)
 nimputed(::AbstractVector) = 0
+
+isimputedvalue(v::AbstractImputedVector, i) = i ∈ v.missingindex
+isimputedvalue(v::AbstractImputedVectorView, i) = isimputedvalue(v.imputedvector, i)
 
 function elementquantile(v::AbstractImputedVector{Ni, S, T}, p; kwargs...) where {Ni, S, T}
     Z = typeof(one(S) + one(T))

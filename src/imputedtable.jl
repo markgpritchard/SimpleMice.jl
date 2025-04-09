@@ -4,7 +4,6 @@
     columnnames                 :: Vector{Symbol}
     columntypes                 :: Vector{Type}
     unchangedvectors            :: Dict{Symbol, Vector}
-    imputedmstaticvectors       :: Dict{Symbol, ImputedVectorMStatic}
     imputedvectors              :: Dict{Symbol, ImputedVector}
     size1                       :: Int
 end
@@ -13,19 +12,10 @@ istable(::ImputedTable) = true
 names(t::ImputedTable) = columnnames(t)
 
 function getproperty(t::ImputedTable, name::Symbol)
-    if name ∈ [ 
-        :columnnames, 
-        :columntypes, 
-        :unchangedvectors, 
-        :imputedmstaticvectors, 
-        :imputedvectors, 
-        :size1 
-    ]
+    if name ∈ [ :columnnames, :columntypes, :unchangedvectors, :imputedvectors, :size1 ]
         return getfield(t, name)
     elseif haskey(t.unchangedvectors, name)
         return t.unchangedvectors[name]
-    elseif haskey(t.imputedmstaticvectors, name)
-        return t.imputedmstaticvectors[name]
     elseif haskey(t.imputedvectors, name)
         return t.imputedvectors[name]
     else 

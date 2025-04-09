@@ -7,17 +7,25 @@ abstract type AbstractImputedTableViewMatrix{S} <: AbstractMatrix{S} end
     index                       :: Int
     n_columns                   :: Int 
     n_rows                      :: Int
+
+    function ImputedTableViewMatrix{S}(
+        originaltable::ImputedTable{Ni}, columns, index, n_columns, n_rows
+    ) where {Ni, S}
+        @assert index <= Ni "Index, $index, must be no more than Ni, $Ni"
+        @assert index > 0 "Index, $index, must be positive"
+        @assert n_columns == length(columns)
+        @assert n_rows == size(originaltable, 1)
+
+        return new{S}(originaltable, columns, index, n_columns, n_rows)
+    end
 end
 
 function ImputedTableViewMatrix(
     originaltable::ImputedTable{Ni}, cols::AbstractVector{<:Int}, index
 ) where {Ni}
-    @assert index <= Ni "Index, $index, must be no more than Ni, $Ni"
-    @assert index > 0 "Index, $index, must be positive"
     n_columns = length(cols)
     n_rows = size(originaltable, 1)
     Tvector = _imputedtableviewtypes(originaltable, cols)
-    #println("Tvector = $Tvector")
     S = __imputedtableviewtypes(Tvector[1])
     for i ∈ eachindex(Tvector)
         i == 1 && continue
@@ -54,15 +62,24 @@ end
     indexes                     :: Vector{Int}
     n_columns                   :: Int 
     n_rows                      :: Int
+
+    function VectorImputedTableViewMatrix{S}(
+        originaltable::ImputedTable{Ni}, columns, indexes, n_columns, n_rows
+    ) where {Ni, S}
+        for i ∈ indexes
+            @assert i <= Ni "Index, $i, must be no more than Ni, $Ni"
+            @assert i > 0 "Index, $i, must be positive"
+        end
+        @assert n_columns == length(columns)
+        @assert n_rows == size(originaltable, 1)
+
+        return new{S}(originaltable, columns, indexes, n_columns, n_rows)
+    end
 end
 
 function VectorImputedTableViewMatrix(
     originaltable::ImputedTable{Ni}, cols::AbstractVector{<:Int}, indexes::AbstractVector
 ) where {Ni}
-    for i ∈ indexes
-        @assert i <= Ni "Index, $i, must be no more than Ni, $Ni"
-        @assert i > 0 "Index, $i, must be positive"
-    end
     n_columns = length(cols)
     n_rows = size(originaltable, 1)
     Tvector = _imputedtableviewtypes(originaltable, cols)

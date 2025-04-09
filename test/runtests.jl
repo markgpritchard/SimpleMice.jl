@@ -32,11 +32,15 @@ end
     a3 = initializemice(5, [ Float64(1), missing ])
     @test a3[2] == ones(Float64, 5)
     # non-missing values are not changed 
-    @test a1[1] == 1
+    @test a3[1] == 1
     # converted in whichever order 
     a4 = initializemice(5, [ missing, 1 ])
     @test a4[1] == ones(Float64, 5)
     @test a4[2] == 1
+    # identify imputed values 
+    @test isimputedvalue(a3, 2)
+    @test !isimputedvalue(a3, 1)
+    @test isimputedvalue(a4, 1)
     @testset "Test sampled values" begin
         rng = StableRNG(1)
         a = initializemice(rng, 10, [ 0, 1, 2, missing ])
@@ -628,28 +632,6 @@ end
         @test isapprox(imputeresult1[i, j], imputeresult2[i, j]; atol=1e-12)
         @test isapprox(imputeresult2[i, j], imputeresult3[i, j]; atol=1e-12)
     end
-end
-@testset "Effect of `staticthresh` keyword" begin
-    df = testexampledf() 
-    rng_a = StableRNG(1)
-    imputeresult1 = impute(rng_a, 5, df, [ :b, :c ], :a, 1)
-    rng_a = StableRNG(1)
-    imputeresult2 = impute(rng_a, 5, df, [ :b, :c ], :a, 1; staticthresh=0)
-    rng_a = StableRNG(1)
-    imputeresult3 = impute(rng_a, 5, df, [ :b, :c ], :a, 1; staticthresh=3)
-    rng_a = StableRNG(1)
-    imputeresult4 = impute(rng_a, 5, df, [ :b, :c ], :a, 1; staticthresh=500)
-    # staticthresh keyword does not affect outcome
-    for i ∈ 1:4, j ∈ 1:3 
-        @test isapprox(imputeresult1[i, j], imputeresult2[i, j]; atol=1e-12)
-        @test isapprox(imputeresult2[i, j], imputeresult3[i, j]; atol=1e-12)
-        @test isapprox(imputeresult3[i, j], imputeresult4[i, j]; atol=1e-12)
-    end
-    # staticthresh keyword does affect type of output 
-    @test imputeresult1.b isa SimpleMice.ImputedVectorMStatic
-    @test imputeresult2.b isa SimpleMice.ImputedVector
-    @test imputeresult3.b isa SimpleMice.ImputedVector
-    @test imputeresult4.b isa SimpleMice.ImputedVectorMStatic
 end
 @testset "Combine values with Rubin's rules" begin
     rng_a = StableRNG(1)

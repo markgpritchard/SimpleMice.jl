@@ -5,11 +5,17 @@
     originaltable               :: ImputedTable
     newcolumntypes              :: Vector{Type}
     index                       :: Int
+
+    function ImputedTableView(
+        originaltable::ImputedTable{Ni}, newcolumntypes, index
+    ) where Ni
+        @assert index <= Ni "Index, $index, must be no more than Ni, $Ni"
+        @assert index > 0 "Index must be positive"
+        return new(originaltable, newcolumntypes, index)
+    end
 end
 
 function ImputedTableView(originaltable::ImputedTable{Ni}, index) where {Ni}
-    @assert index <= Ni "Index, $index, must be no more than Ni, $Ni"
-    @assert index > 0 "Index must be positive"
     newcolumntypes = _imputedtableviewtypes(originaltable)
     return ImputedTableView(originaltable, newcolumntypes, index)
 end

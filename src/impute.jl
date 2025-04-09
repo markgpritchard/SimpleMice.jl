@@ -43,7 +43,7 @@ function initializemice(
     )
 end
 
-function _initializemicevector(rng, T, Ni, v; staticthresh=100)
+function _initializemicevector(rng, T, Ni, v)
     nmvector = collect(skipmissing(v))
     @assert length(nmvector) >= 1 "Must have at least 1 non-missing value"
     S = typeof(nmvector[1])
@@ -51,10 +51,14 @@ function _initializemicevector(rng, T, Ni, v; staticthresh=100)
     Np = Ni * Nm 
     if Np == 0 
         return v
-    elseif Np < staticthresh 
-        return _initializemicestatic(rng, Ni, Nm, Np, S, T, v, nmvector)
     else 
-        return _initializemicenotstatic(rng, Ni, Nm, Np, S, T, v, nmvector)
+        return ImputedVector{Ni, S, T}(
+            v,
+            findall(ismissing, v),
+            [ MVector{Ni, T}([ T(sample(rng, nmvector)) for _ ∈ 1:Ni ]) for _ ∈ 1:Nm ],
+            Nm,
+            Np
+        )
     end
 end
 
@@ -67,15 +71,12 @@ function _initializemicedataframe(rng, T, Ni, df, columns; kwargs...)
     columnnames = Symbol.(names(df))
     columntypes = Vector{Type}(undef, length(columnnames))                 
     unchangedvectors::Dict{Symbol, Vector} = Dict()
-    imputedmstaticvectors::Dict{Symbol, ImputedVectorMStatic} = Dict()
     imputedvectors::Dict{Symbol, ImputedVector} = Dict()
     size1 = size(df, 1)
     for (j, name) ∈ enumerate(columnnames) 
         if name ∈ columns
             vnew = _initializemicevector(rng, T, Ni, getproperty(df, name); kwargs...)
-            _pushinitializemice!(
-                unchangedvectors, imputedmstaticvectors, imputedvectors, name, vnew
-            )
+            _pushinitializemice!(unchangedvectors, imputedvectors, name, vnew)
             columntypes[j] = typeof(vnew)
         else
             push!(unchangedvectors, name => getproperty(df, name))
@@ -86,40 +87,17 @@ function _initializemicedataframe(rng, T, Ni, df, columns; kwargs...)
         columnnames, 
         columntypes, 
         unchangedvectors, 
-        imputedmstaticvectors, 
         imputedvectors, 
         size1
     )
 end
 
-function _pushinitializemice!(unchangedvectors, ::Any, ::Any, name, vnew::Vector{<:Number})
+function _pushinitializemice!(unchangedvectors, ::Any, name, vnew::Vector{<:Number})
     push!(unchangedvectors, name => vnew)
 end
 
-function _pushinitializemice!(
-    ::Any, imputedmstaticvectors, ::Any, name, vnew::ImputedVectorMStatic
-)
-    push!(imputedmstaticvectors, name => vnew)
-end
-
-function _pushinitializemice!(::Any, ::Any, imputedvectors, name, vnew::ImputedVector)
+function _pushinitializemice!(::Any, imputedvectors, name, vnew::ImputedVector)
     push!(imputedvectors, name => vnew)
-end
-
-function _initializemicestatic(rng, Ni, Nm, Np, S, T, v, nmvector)
-    return ImputedVectorMStatic{Ni, Nm, Np, S, T}(
-        v,
-        SVector{Nm, Int}(findall(ismissing, v)),
-        MMatrix{Nm, Ni, T, Np}([ T(sample(rng, nmvector)) for _ ∈ 1:Nm, _ ∈ 1:Ni ])
-    )
-end
-
-function _initializemicenotstatic(rng, Ni, Nm, Np, S, T, v, nmvector)
-    return ImputedVector{Ni, Nm, Np, S, T}(
-        v,
-        findall(ismissing, v),
-        [ T(sample(rng, nmvector)) for _ ∈ 1:Nm, _ ∈ 1:Ni ]
-    )
 end
 
 function linearupdatemicevalues!(table::ImputedTableView, y::Symbol, x::Vector{Symbol})
@@ -165,7 +143,7 @@ function _linearupdatemicevalues_tableview!(tableview, y, x)
     sol = solve(prob, LinearSolve.KrylovJL_LSMR())
     preds = A * sol
     for (i, j) ∈ enumerate(getproperty(tableview.originaltable, y).missingindex)
-        getproperty(tableview.originaltable, y).imputedvalues[i, tableview.index] = preds[j]
+        getproperty(tableview.originaltable, y).imputedvalues[i][tableview.index] = preds[j]
     end
 end
 
@@ -290,14 +268,8 @@ function impute(
     return _impute(rng, T, Ni, df, iteratevars, includevars, iterations; kwargs...) 
 end
 
-function _impute(
-    rng, T, Ni, df, iteratevars, includevars, iterations; 
-    multithread=true, staticthresh=100
-)
-    table = _initializemicedataframe(
-        rng, T, Ni, df, [ iteratevars; includevars ]; 
-        staticthresh
-    )
+function _impute(rng, T, Ni, df, iteratevars, includevars, iterations; multithread=true,)
+    table = _initializemicedataframe(rng, T, Ni, df, [ iteratevars; includevars ])
     _linearupdatemicevalues_wholetable!(
         table, iteratevars, includevars, iterations; 
         multithread

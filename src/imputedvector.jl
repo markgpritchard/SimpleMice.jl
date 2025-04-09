@@ -3,27 +3,33 @@
 
 abstract type AbstractImputedVector{Ni, S, T} <: AbstractVector{S} end  # not exported
 
-struct ImputedVectorMStatic{Ni, Nm, Np, S, T} <: AbstractImputedVector{Ni, S, T}  # not exported
-    original                    :: Vector{<:Union{Missing, S}} 
-    missingindex                :: SVector{Nm, Int}
-    imputedvalues               :: MMatrix{Nm, Ni, T, Np} 
-end
-
-struct ImputedVectorStatic{Ni, Nm, Np, S, T} <: AbstractImputedVector{Ni, S, T}  # not exported
-    original                    :: Vector{<:Union{Missing, S}} 
-    missingindex                :: SVector{Nm, Int}
-    imputedvalues               :: SMatrix{Nm, Ni, T, Np} 
-end
-
-struct ImputedVector{Ni, Nm, Np, S, T} <: AbstractImputedVector{Ni, S, T}  # not exported
+struct ImputedVector{Ni, S, T} <: AbstractImputedVector{Ni, S, T}  # not exported
     original                    :: Vector{<:Union{Missing, S}}
     missingindex                :: Vector{Int}
-    imputedvalues               :: Matrix{T} 
+    imputedvalues               :: Vector{MVector{Ni, T}}
+    Nm                          :: Int 
+    Np                          :: Int
+
+    function ImputedVector{Ni, S, T}(
+        original, missingindex, imputedvalues, Nm, Np
+        ) where {Ni, S, T}
+        if Ni * Nm != Np 
+            throw(
+                DimensionMismatch("Ni ($Ni) must be the product of Ni ($Ni) and Nm ($Nm)")
+            )
+        else 
+            return new{Ni, S, T}(original, missingindex, imputedvalues, Nm, Np)
+        end
+    end
 end
 
 # manual hash and equals so that we don't simply get each struct equals missing 
 function ==(a::AbstractImputedVector, b::AbstractImputedVector)
     if hash(a) != hash(b) 
+        return false
+    elseif a.Nm != b.Nm 
+        return false 
+    elseif a.Np != b.Np 
         return false
     elseif (a.missingindex) != (b.missingindex)
         return false 
@@ -40,10 +46,28 @@ function ==(a::AbstractImputedVector, b::AbstractImputedVector)
     return true 
 end
 
-function hash(a::AbstractImputedVector, h::UInt)
+function hash(a::ImputedVector{Ni, S, T}, h::UInt) where {Ni, S, T}
     hash(
-        a.original, 
-        hash(a.missingindex, hash(a.imputedvalues, hash(:AbstractImputedVector, h)))
+        Ni,
+        hash(
+            a.original, 
+            hash(
+                a.missingindex, 
+                hash(
+                    a.imputedvalues, 
+                    hash(
+                        a.Nm,
+                        hash(
+                            a.Np,
+                            hash(
+                                :AbstractImputedVector, 
+                                h
+                            )
+                        )
+                    )
+                )
+            )
+        )
     )
 end
 
@@ -60,9 +84,9 @@ function iterate(v::AbstractImputedVector, i::Integer)
 end 
 
 function getindex(v::AbstractImputedVector, i::Integer) 
-    if i ∈ v.missingindex
+    if isimputedvalue(v, i)
         j = findfirst(x -> x == i, v.missingindex)
-        return v.imputedvalues[j, :]
+        return v.imputedvalues[j]
     else
         return v.original[i]
     end
