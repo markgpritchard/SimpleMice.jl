@@ -9,8 +9,13 @@
     function ImputedTableView(
         originaltable::ImputedTable{Ni}, newcolumntypes, index
     ) where Ni
-        @assert index <= Ni "Index, $index, must be no more than Ni, $Ni"
-        @assert index > 0 "Index must be positive"
+        if index > Ni || index <= 0
+            throw(
+                ArgumentError(
+                    "Index ($index) must be positive and no greater than Ni ($Ni)"
+                )
+            )
+        end
         return new(originaltable, newcolumntypes, index)
     end
 end

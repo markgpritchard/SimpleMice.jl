@@ -11,20 +11,35 @@ abstract type AbstractImputedTableViewMatrix{S} <: AbstractMatrix{S} end
     function ImputedTableViewMatrix{S}(
         originaltable::ImputedTable{Ni}, columns, index, n_columns, n_rows
     ) where {Ni, S}
-        @assert index <= Ni "Index, $index, must be no more than Ni, $Ni"
-        @assert index > 0 "Index, $index, must be positive"
-        @assert n_columns == length(columns)
-        @assert n_rows == size(originaltable, 1)
+        if index > Ni || index <= 0
+            throw(
+                ArgumentError(
+                    "Index ($index) must be positive and no greater than Ni ($Ni)"
+                )
+            )
+        end
+        if n_columns != length(columns)
+            _lc = length(columns)
+            throw(
+                DimensionMismatch(
+                    "n_columns ($n_columns) must equal the number of columns listed ($_lc)"
+                )
+            )
+        end
+        if n_rows != size(originaltable, 1) 
+            _so1 = size(originaltable, 1) 
+            throw(
+                DimensionMismatch(
+                    "n_rows ($n_rows) must equal the length of originaltable ($_so1)"
+                )
+            )
+        end
 
         return new{S}(originaltable, columns, index, n_columns, n_rows)
     end
 end
 
-function ImputedTableViewMatrix(
-    originaltable::ImputedTable{Ni}, cols::AbstractVector{<:Int}, index
-) where {Ni}
-    n_columns = length(cols)
-    n_rows = size(originaltable, 1)
+function ImputedTableViewMatrix(originaltable, cols, index, n_columns, n_rows)
     Tvector = _imputedtableviewtypes(originaltable, cols)
     S = __imputedtableviewtypes(Tvector[1])
     for i ∈ eachindex(Tvector)
@@ -32,6 +47,14 @@ function ImputedTableViewMatrix(
         S = typeof(one(S) + one(__imputedtableviewtypes(Tvector[i])))
     end
     return ImputedTableViewMatrix{S}(originaltable, cols, index, n_columns, n_rows)
+end
+
+function ImputedTableViewMatrix(
+    originaltable::ImputedTable{Ni}, cols::AbstractVector{<:Int}, index
+) where {Ni}
+    n_columns = length(cols)
+    n_rows = size(originaltable, 1)
+    return ImputedTableViewMatrix(originaltable, cols, index, n_columns, n_rows)
 end
 
 function ImputedTableViewMatrix(
@@ -67,21 +90,35 @@ end
         originaltable::ImputedTable{Ni}, columns, indexes, n_columns, n_rows
     ) where {Ni, S}
         for i ∈ indexes
-            @assert i <= Ni "Index, $i, must be no more than Ni, $Ni"
-            @assert i > 0 "Index, $i, must be positive"
+            if i > Ni || i <= 0
+                throw(
+                    ArgumentError(
+                        "Index ($i) must be positive and no greater than Ni ($Ni)"
+                    )
+                )
+            end
         end
-        @assert n_columns == length(columns)
-        @assert n_rows == size(originaltable, 1)
-
+        if n_columns != length(columns)
+            _lc = length(columns)
+            throw(
+                DimensionMismatch(
+                    "n_columns ($n_columns) must equal the number of columns listed ($_lc)"
+                )
+            )
+        end
+        if n_rows != size(originaltable, 1) 
+            _so1 = size(originaltable, 1) 
+            throw(
+                DimensionMismatch(
+                    "n_rows ($n_rows) must equal the length of originaltable ($_so1)"
+                )
+            )
+        end
         return new{S}(originaltable, columns, indexes, n_columns, n_rows)
     end
 end
 
-function VectorImputedTableViewMatrix(
-    originaltable::ImputedTable{Ni}, cols::AbstractVector{<:Int}, indexes::AbstractVector
-) where {Ni}
-    n_columns = length(cols)
-    n_rows = size(originaltable, 1)
+function VectorImputedTableViewMatrix(originaltable, cols, indexes, n_columns, n_rows)
     Tvector = _imputedtableviewtypes(originaltable, cols)
     S = __imputedtableviewtypes(Tvector[1])
     for i ∈ eachindex(Tvector)
@@ -92,16 +129,22 @@ function VectorImputedTableViewMatrix(
 end
 
 function VectorImputedTableViewMatrix(
-    originaltable::ImputedTable, cols::AbstractVector{Symbol}, indexes::AbstractVector
+    originaltable, cols::AbstractVector{<:Int}, indexes::AbstractVector
+) 
+    n_columns = length(cols)
+    n_rows = size(originaltable, 1)
+    return VectorImputedTableViewMatrix(originaltable, cols, indexes, n_columns, n_rows)
+end
+
+function VectorImputedTableViewMatrix(
+    originaltable, cols::AbstractVector{Symbol}, indexes::AbstractVector
 ) 
     colindexes = _colindexes(originaltable, cols)
     return VectorImputedTableViewMatrix(originaltable, colindexes, indexes)
 end
 
 function VectorImputedTableViewMatrix(
-    originaltable::ImputedTable, 
-    cols::AbstractVector{<:AbstractString}, 
-    indexes::AbstractVector
+    originaltable, cols::AbstractVector{<:AbstractString}, indexes::AbstractVector
 ) 
     colsymbols = Symbol.(cols)
     return VectorImputedTableViewMatrix(originaltable, colsymbols, indexes)

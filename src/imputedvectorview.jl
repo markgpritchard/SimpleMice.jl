@@ -10,8 +10,14 @@ abstract type AbstractImputedVectorView{S} <: AbstractVector{S} end
     function ImputedVectorView(
         imputedvector::AbstractImputedVector{Ni, S, T}, index
     ) where {Ni, S, T}
-        @assert index <= Ni "Index, $index, must be no more than Ni, $Ni"
-        @assert index > 0 "Index, $index, must be positive"
+        if index > Ni || index <= 0
+            throw(
+                ArgumentError(
+                    "Index ($index) must be positive and no greater than Ni ($Ni)"
+                )
+            )
+        end
+        
         combinedtype = typeof(one(S) + one(T))
         return new{combinedtype, typeof(imputedvector)}(imputedvector, index)
     end

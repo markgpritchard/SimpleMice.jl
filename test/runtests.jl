@@ -13,28 +13,29 @@ function testexampledf()
 end
 
 @testset "SimpleMice.jl" begin
+
 @testset "Convert missing values into `Mice` values" begin
     # recognise vectors with no missing values 
     @test nonemissing(ones(2))
     # recognise vectors with at least one missing value 
     @test !nonemissing([ 1, missing ])
     # does not modify a vector with nothing missing
-    @test initializemice(5, ones(1)) == ones(1)    
+    @test initializemicevector(5, ones(1)) == ones(1)    
     # if nothing missing, returns same type as is provided 
-    @test initializemice(5, ones(Int, 1)) isa Vector{Int64} 
+    @test initializemicevector(5, ones(Int, 1)) isa Vector{Int64} 
     # values of missing data populated with other values from the vector 
-    a1 = initializemice(5, [ 1, missing ])
+    a1 = initializemicevector(5, [ 1, missing ])
     @test a1[2] == ones(5)
     # provides correct number of imputed values 
-    a2 = initializemice(4, [ 1, missing ])
+    a2 = initializemicevector(4, [ 1, missing ])
     @test a2[2] == ones(4)
     # imputed values of correct type 
-    a3 = initializemice(5, [ Float64(1), missing ])
+    a3 = initializemicevector(5, [ Float64(1), missing ])
     @test a3[2] == ones(Float64, 5)
     # non-missing values are not changed 
     @test a3[1] == 1
     # converted in whichever order 
-    a4 = initializemice(5, [ missing, 1 ])
+    a4 = initializemicevector(5, [ missing, 1 ])
     @test a4[1] == ones(Float64, 5)
     @test a4[2] == 1
     # identify imputed values 
@@ -43,33 +44,33 @@ end
     @test isimputedvalue(a4, 1)
     @testset "Test sampled values" begin
         rng = StableRNG(1)
-        a = initializemice(rng, 10, [ 0, 1, 2, missing ])
+        a = initializemicevector(rng, 10, [ 0, 1, 2, missing ])
         @test minimum(a[4]) == 0
         @test maximum(a[4]) == 2
     end
     @testset "same rng gives same results" begin
         rng_a = StableRNG(1)
-        a = initializemice(rng_a, 10, [ 0, 1, 2, missing ])
+        a = initializemicevector(rng_a, 10, [ 0, 1, 2, missing ])
         rng_b = StableRNG(1)
-        b = initializemice(rng_b, 10, [ 0, 1, 2, missing ])        
+        b = initializemicevector(rng_b, 10, [ 0, 1, 2, missing ])        
         @test a == b
     end
     @testset "different rng gives different results" begin
         rng_a = StableRNG(1)
-        a = initializemice(rng_a, 10, [ 0, 1, 2, missing ])
+        a = initializemicevector(rng_a, 10, [ 0, 1, 2, missing ])
         rng_b = StableRNG(2)
-        b = initializemice(rng_b, 10, [ 0, 1, 2, missing ])        
+        b = initializemicevector(rng_b, 10, [ 0, 1, 2, missing ])        
         @test a != b
     end
     @testset "assertion error if no non-missing values" begin       
-        @test_throws AssertionError initializemice(1, [ missing ])
+        @test_throws AssertionError initializemicevector(1, [ missing ])
     end
     @testset "count numbers imputed" begin
         @test nimputed(ones(2)) == 0 
         rng = StableRNG(1)
-        a = initializemice(rng, 10, [ 0, 1, 2, missing ])
+        a = initializemicevector(rng, 10, [ 0, 1, 2, missing ])
         @test nimputed(a) == 1
-        b = initializemice(rng, 10, [ 0, missing, 2, missing ])
+        b = initializemicevector(rng, 10, [ 0, missing, 2, missing ])
         @test nimputed(b) == 2
     end
 end  
@@ -279,12 +280,12 @@ end
 end  
 @testset "Manipulate ImputedVector" begin
     rng_a = StableRNG(1)
-    v = initializemice(rng_a, 5, [ 1, missing, 5 ])
+    v = initializemicevector(rng_a, 5, [ 1, missing, 5 ])
     # imputed values [ 5.0, 1.0, 1.0, 5.0, 5.0 ]
     @test imputedvectorview(v, 1) == [ 1.0, 5.0, 5.0 ]
     @test imputedvectorview(v, 2) == [ 1.0, 1.0, 5.0 ]
-    @test_throws AssertionError imputedvectorview(v, 0)
-    @test_throws AssertionError imputedvectorview(v, 6)
+    @test_throws ArgumentError imputedvectorview(v, 0)
+    @test_throws ArgumentError imputedvectorview(v, 6)
     df = DataFrame( ; a=[ 1, missing, 2 ], b=[ 3, 4, 5 ])
     rng_b = StableRNG(1)
     dfa = initializemice(rng_b, 5, df)
@@ -295,11 +296,11 @@ end
     dfav2 = imputedtableview(dfa, 2)
     @test dfav2.a == [ 1.0, 1.0, 2.0 ]
     @test dfav2.b == [ 3, 4, 5 ]
-    @test_throws AssertionError imputedtableview(dfa, 0)
-    @test_throws AssertionError imputedtableview(dfa, 6)
+    @test_throws ArgumentError imputedtableview(dfa, 0)
+    @test_throws ArgumentError imputedtableview(dfa, 6)
     @testset "count numbers imputed" begin
         @test nimputed(imputedvectorview(v, 1)) == 1
-        v2 = initializemice(rng_a, 5, [ 1, missing, 5, missing ])
+        v2 = initializemicevector(rng_a, 5, [ 1, missing, 5, missing ])
         @test nimputed(imputedvectorview(v2, 2)) == 2
     end
 end
@@ -635,17 +636,17 @@ end
 end
 @testset "Combine values with Rubin's rules" begin
     rng_a = StableRNG(1)
-    v = initializemice(rng_a, 5, [ 1, missing, 5, 3 ])
+    v = initializemicevector(rng_a, 5, [ 1, missing, 5, 3 ])
     # imputed values [ 3.0, 1.0, 5.0, 5.0, 1.0 ]
     @test sum(v) == [ 12, 10, 14, 14, 10 ]
-    @test elementmean(v) == [ 3, 2.5, 3.5, 3.5, 2.5 ]
+    @test SimpleMice._elementmean(v) == [ 3, 2.5, 3.5, 3.5, 2.5 ]
     @test mean(v) == 3
-    @test elementvar(v) == [
-        var([ 1, 3, 5, 3]),
-        var([ 1, 1, 5, 3]),
-        var([ 1, 5, 5, 3]),
-        var([ 1, 5, 5, 3]),
-        var([ 1, 1, 5, 3])        
+    @test SimpleMice._elementvar(v) == [
+        var([ 1, 3, 5, 3 ]),
+        var([ 1, 1, 5, 3 ]),
+        var([ 1, 5, 5, 3 ]),
+        var([ 1, 5, 5, 3 ]),
+        var([ 1, 1, 5, 3 ]) 
     ]
     @test var(v) == 3.766666666666666
 end
@@ -662,7 +663,7 @@ end
     @test a1 == a3
     @test a1 != a4 
     @test a1 != a5
-    @test_throws AssertionError vectorimputedtableviewmatrix(imputeresult, [ :a, :b ], 1:6) 
+    @test_throws ArgumentError vectorimputedtableviewmatrix(imputeresult, [ :a, :b ], 1:6) 
     @test length(a1) == 5
     @test size(a1) == ( 5, )
     @test length(a5) == 3
@@ -690,22 +691,22 @@ end
     rng = StableRNG(1)
     imputeresult = impute(rng, 5, df, [ :b, :c ], :a, 1)
     ms = imputedmean(imputeresult.b)
-    me = elementmean(imputeresult.b)
+    me = SimpleMice._elementmean(imputeresult.b)
     m = mean(imputeresult.b)
-    @test elementmean(ms) == me 
+    @test displayelementmeans(ms) == me 
     @test mean(me) == m
-    @test mean(ms) == m
+    @test meanvalue(ms) == m
     vs = imputedvar(imputeresult.b)
-    ve = elementvar(imputeresult.b)
-    vr = rubinsvar(5, me, ve)
+    ve = SimpleMice._elementvar(imputeresult.b)
     v = var(imputeresult.b)
     v2 = var(imputeresult.b; mean=m)
     v3 = var(imputeresult.b; mean=ms)
-    @test elementmean(vs) == me 
-    @test mean(vs) == m
-    @test elementvar(vs) == ve 
-    @test var(vs) == v 
+    @test displayelementmeans(vs) == me 
+    @test meanvalue(vs) == m
+    @test displayelementvars(vs) == ve 
+    @test varvalue(vs) == v 
     @test v == v2 
     @test v2 == v3
 end
+
 end  # @testset "SimpleMice.jl"

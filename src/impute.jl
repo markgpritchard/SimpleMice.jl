@@ -1,73 +1,43 @@
 # contains functions to create imputed data set
 
+function initializemicevector(Ni::Integer, v)
+    return initializemicevector(default_rng(), Ni, v)
+end
+
+function initializemicevector(rng::AbstractRNG, Ni::Integer, v)
+    return _initializemicevector(rng, Ni, v)
+end
+
+function _initializemicevector(rng, Ni, v)
+    Nm = sum(ismissing.(v))
+    if Nm == 0 
+        return v 
+    else 
+        return ImputedVector{Ni}(rng, v, Nm)
+    end
+end
+
 function initializemice(Ni::Integer, args...; kwargs...)
     return initializemice(default_rng(), Ni, args...; kwargs...)
 end
 
-function initializemice(rng::AbstractRNG, Ni::Integer, args...; kwargs...)
-    return initializemice(rng, Float64, Ni, args...; kwargs...)
-end
-
-function initializemice(T::DataType, Ni::Integer, args...; kwargs...)
-    return initializemice(default_rng(), T, Ni, args...; kwargs...)
-end
-
-function initializemice(
-    rng::AbstractRNG, T::DataType, Ni::Integer, v::AbstractVector; 
-    kwargs...
-)
-    return _initializemicevector(rng, T, Ni, v; kwargs...)
-end
-
-function initializemice(
-    rng::AbstractRNG, T::DataType, Ni::Integer, df::DataFrame; 
-    kwargs...
-)
-    return _initializemicedataframe(rng, T, Ni, df; kwargs...)
-end
-
-function initializemice(
-    rng::AbstractRNG, T::DataType, Ni::Integer, df::DataFrame, columns::Vector{Symbol}; 
-    kwargs...
-)
-    return _initializemicedataframe(rng, T, Ni, df, columns; kwargs...)
-end
-
-function initializemice(
-    rng::AbstractRNG, T::DataType, Ni::Integer, df::DataFrame, columns; 
-    kwargs...
-)
-    return _initializemicedataframe(
-        rng, T, Ni, df, _inputsymbolvector(df, columns); 
-        kwargs...
-    )
-end
-
-function _initializemicevector(rng, T, Ni, v)
-    nmvector = collect(skipmissing(v))
-    @assert length(nmvector) >= 1 "Must have at least 1 non-missing value"
-    S = typeof(nmvector[1])
-    Nm = sum(ismissing.(v))
-    Np = Ni * Nm 
-    if Np == 0 
-        return v
-    else 
-        return ImputedVector{Ni, S, T}(
-            v,
-            findall(ismissing, v),
-            [ MVector{Ni, T}([ T(sample(rng, nmvector)) for _ ∈ 1:Ni ]) for _ ∈ 1:Nm ],
-            Nm,
-            Np
-        )
-    end
-end
-
-function _initializemicedataframe(rng, T, Ni, df; kwargs...)
+function initializemice(rng::AbstractRNG, Ni::Integer, df::DataFrame; kwargs...)
     columns = Symbol.(names(df))
-    return _initializemicedataframe(rng, T, Ni, df, columns; kwargs...)
+    return _initializemicedataframe(rng, Ni, df, columns; kwargs...)
 end
 
-function _initializemicedataframe(rng, T, Ni, df, columns; kwargs...)
+function initializemice(
+    rng::AbstractRNG, Ni::Integer, df::DataFrame, columns::Vector{Symbol}; 
+    kwargs...
+)
+    return _initializemicedataframe(rng, Ni, df, columns; kwargs...)
+end
+
+function initializemice(rng::AbstractRNG, Ni::Integer, df::DataFrame, columns; kwargs...)
+    return _initializemicedataframe(rng, Ni, df, _inputsymbolvector(df, columns); kwargs...)
+end
+
+function _initializemicedataframe(rng, Ni, df, columns; kwargs...)
     columnnames = Symbol.(names(df))
     columntypes = Vector{Type}(undef, length(columnnames))                 
     unchangedvectors::Dict{Symbol, Vector} = Dict()
@@ -75,7 +45,7 @@ function _initializemicedataframe(rng, T, Ni, df, columns; kwargs...)
     size1 = size(df, 1)
     for (j, name) ∈ enumerate(columnnames) 
         if name ∈ columns
-            vnew = _initializemicevector(rng, T, Ni, getproperty(df, name); kwargs...)
+            vnew = _initializemicevector(rng, Ni, getproperty(df, name))
             _pushinitializemice!(unchangedvectors, imputedvectors, name, vnew)
             columntypes[j] = typeof(vnew)
         else
@@ -84,11 +54,7 @@ function _initializemicedataframe(rng, T, Ni, df, columns; kwargs...)
         end
     end
     return ImputedTable{Ni}(
-        columnnames, 
-        columntypes, 
-        unchangedvectors, 
-        imputedvectors, 
-        size1
+        columnnames, columntypes, unchangedvectors, imputedvectors, size1
     )
 end
 
@@ -201,28 +167,22 @@ function impute(Ni::Integer, df::DataFrame, args...; kwargs...)
 end
 
 function impute(rng::AbstractRNG, Ni::Integer, df::DataFrame, args...; kwargs...)
-    return impute(rng, Float64, Ni, df, args...; kwargs...)
-end
-
-function impute(T::DataType, Ni::Integer, df::DataFrame, args...; kwargs...)
-    return impute(default_rng(), T, Ni, df, args...; kwargs...)
+    return impute(rng, Ni, df, args...; kwargs...)
 end
 
 function impute(
     rng::AbstractRNG, 
-    T::DataType, 
     Ni::Integer, 
     df::DataFrame, 
     iterations::Integer;
     kwargs...
 )
     iteratevars = Symbol.(names(df))
-    return impute(rng, T, Ni, df, iteratevars, iterations; kwargs...)
+    return impute(rng, Ni, df, iteratevars, iterations; kwargs...)
 end
 
 function impute(
     rng::AbstractRNG, 
-    T::DataType, 
     Ni::Integer, 
     df::DataFrame, 
     iteratevars,
@@ -230,12 +190,11 @@ function impute(
     kwargs...
 )
     includevars = Symbol[ ]
-    return impute(rng, T, Ni, df, iteratevars, includevars, iterations; kwargs...)
+    return impute(rng, Ni, df, iteratevars, includevars, iterations; kwargs...)
 end
 
 function impute(
     rng::AbstractRNG, 
-    T::DataType, 
     Ni::Integer, 
     df::DataFrame, 
     iteratevars,
@@ -245,7 +204,6 @@ function impute(
 )
     return _impute(
         rng, 
-        T, 
         Ni, 
         df, 
         _inputsymbolvector(df, iteratevars),
@@ -257,7 +215,6 @@ end
 
 function impute(
     rng::AbstractRNG, 
-    T::DataType, 
     Ni::Integer, 
     df::DataFrame, 
     iteratevars::Vector{Symbol}, 
@@ -265,11 +222,11 @@ function impute(
     iterations::Integer; 
     kwargs...
 )
-    return _impute(rng, T, Ni, df, iteratevars, includevars, iterations; kwargs...) 
+    return _impute(rng, Ni, df, iteratevars, includevars, iterations; kwargs...) 
 end
 
-function _impute(rng, T, Ni, df, iteratevars, includevars, iterations; multithread=true,)
-    table = _initializemicedataframe(rng, T, Ni, df, [ iteratevars; includevars ])
+function _impute(rng, Ni, df, iteratevars, includevars, iterations; multithread=true,)
+    table = _initializemicedataframe(rng, Ni, df, [ iteratevars; includevars ])
     _linearupdatemicevalues_wholetable!(
         table, iteratevars, includevars, iterations; 
         multithread

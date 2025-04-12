@@ -15,12 +15,40 @@ struct ImputedVector{Ni, S, T} <: AbstractImputedVector{Ni, S, T}  # not exporte
         ) where {Ni, S, T}
         if Ni * Nm != Np 
             throw(
-                DimensionMismatch("Ni ($Ni) must be the product of Ni ($Ni) and Nm ($Nm)")
+                DimensionMismatch("Np ($Np) must be the product of Ni ($Ni) and Nm ($Nm)")
             )
-        else 
-            return new{Ni, S, T}(original, missingindex, imputedvalues, Nm, Np)
         end
+        if Nm != length(imputedvalues)
+            _liv = length(imputedvalues)
+            throw(
+                DimensionMismatch(
+                    "Nm ($Nm) must equal the length of the vector of imputedvalues ($_liv)"
+                )
+            ) 
+        end
+        return new{Ni, S, T}(original, missingindex, imputedvalues, Nm, Np)
     end
+end
+
+ImputedVector{Ni}(original) where Ni = ImputedVector{Ni}(default_rng(), original)
+ImputedVector{Ni}(original, Nm) where Ni = ImputedVector{Ni}(default_rng(), original, Nm)
+
+function ImputedVector{Ni}(rng::AbstractRNG, original) where Ni
+    return ImputedVector{Ni}(rng::AbstractRNG, original, sum(ismissing.(original)))
+end
+
+function ImputedVector{Ni}(rng::AbstractRNG, original, Nm) where Ni
+    nmvector = collect(skipmissing(original))
+    @assert length(nmvector) >= 1 "Must have at least 1 non-missing value"
+    S = typeof(nmvector[1])
+    T = _typeofsumdivided(S) 
+    missingindex = findall(ismissing, original)
+    imputedvalues = [ 
+        MVector{Ni, T}([ T(sample(rng, nmvector)) for _ ∈ 1:Ni ]) 
+        for _ ∈ 1:Nm 
+    ]
+    Np = Ni * Nm 
+    return ImputedVector{Ni, S, T}(original, missingindex, imputedvalues, Nm, Np)
 end
 
 # manual hash and equals so that we don't simply get each struct equals missing 

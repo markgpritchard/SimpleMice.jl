@@ -25,3 +25,12 @@ _inputsymbolvector(a::AbstractString) = _inputsymbolvector([ a ])
 _inputsymbolvector(::Any, a::Symbol) = _inputsymbolvector([ a ])
 _inputsymbolvector(::Any, a::AbstractString) = _inputsymbolvector([ a ])
 _inputsymbolvector(names, a::Integer) = _inputsymbolvector(names, [ a ])
+
+_typeofsum(S) = typeof(one(S)) 
+_typeofsum(S, T) = typeof(one(S) + one(T))
+_typeofsum(S, T, args...) = _typeofsum(_typeofsum(S, T), args...)
+
+function _typeofsumdivided(args...)
+    N = _typeofsum(args...)
+    return typeof(one(N) / 1)
+end

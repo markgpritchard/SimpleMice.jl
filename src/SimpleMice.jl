@@ -42,13 +42,20 @@ export
     ## functions imported from StatsBase 
     mean,
     var,
+    ## imputedvector.jl
+    ImputedVector,
     ## imputedvectorview.jl
+    ImputedVectorView,
     imputedvectorview,
     ## imputedtable.jl
+    ImputedTable,
     getcolumn,
     ## imputedtableview.jl
+    ImputedTableView,
     imputedtableview,
     ## imputedtableviewmatrix.jl 
+    ImputedTableViewMatrix,
+    VectorImputedTableViewMatrix,
     imputedtableviewmatrix,
     vectorimputedtableviewmatrix,
     ## functions.jl
@@ -56,13 +63,18 @@ export
     ## impute.jl
     impute,
     initializemice,
+    initializemicevector,
     linearupdatemicevalues!,
     ## rubinsrules.jl
-    elementmean,
+    betweenimputationvar,
+    displayelementmeans,
+    displayelementvars,
     elementvar,
     imputedmean,
     imputedvar,
+    meanvalue,
     rubinsvar,
+    varvalue,
     ## description.jl
     isimputedvalue,
     nimputed,
