@@ -8,10 +8,10 @@
     size1                       :: Int
 end
 
-istable(::ImputedTable) = true
-names(t::ImputedTable) = columnnames(t)
+Tables.istable(::ImputedTable) = true
+Base.names(t::ImputedTable) = columnnames(t)
 
-function getproperty(t::ImputedTable, name::Symbol)
+function Base.getproperty(t::ImputedTable, name::Symbol)
     if name ∈ [ :columnnames, :columntypes, :unchangedvectors, :imputedvectors, :size1 ]
         return getfield(t, name)
     elseif haskey(t.unchangedvectors, name)
@@ -23,25 +23,25 @@ function getproperty(t::ImputedTable, name::Symbol)
     end
 end
 
-columnnames(t::ImputedTable) = getfield(t, :columnnames)
-getcolumn(t::ImputedTable, i::Int) = getcolumn(t, columnnames(t)[i])
-getcolumn(t::ImputedTable, name::Symbol) = getproperty(t, name)
+Tables.columnnames(t::ImputedTable) = getfield(t, :columnnames)
+Tables.getcolumn(t::ImputedTable, i::Int) = getcolumn(t, columnnames(t)[i])
+Tables.getcolumn(t::ImputedTable, name::Symbol) = getproperty(t, name)
 
-function schema(t::ImputedTable{Ni}) where {Ni}
+function Tables.schema(t::ImputedTable{Ni}) where {Ni}
     return Schema(names(t), getfield(t, :columntypes))
 end
 
-size(t::ImputedTable) = ( t.size1, length(t.columnnames) )
-size(t::ImputedTable, dim) = size(t)[dim]
-getindex(t::ImputedTable, rownum, colnum) = getindex(getcolumn(t, colnum), rownum)
+Base.size(t::ImputedTable) = ( t.size1, length(t.columnnames) )
+Base.size(t::ImputedTable, dim) = size(t)[dim]
+Base.getindex(t::ImputedTable, rownum, colnum) = getindex(getcolumn(t, colnum), rownum)
 
-function summary(t::ImputedTable{Ni}) where Ni
+function Base.summary(t::ImputedTable{Ni}) where Ni
     return "$(size(t, 1))×$(size(t, 2)) ImputedTable with $Ni imputations"
 end
 
 _returnimputedtableni(::ImputedTable{Ni}) where Ni = Ni
 
-function show(
+function Base.show(
     io::IO, t::ImputedTable; 
     crop_subheader=true, 
     hlines=[ 1 ], 

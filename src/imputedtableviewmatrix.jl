@@ -1,40 +1,36 @@
 
 abstract type AbstractImputedTableViewMatrix{S} <: AbstractMatrix{S} end
 
+"""
+    ImputedTableViewMatrix{S}
+
+A wrapper that allows one imputed dataset produced by multiple imputation to be accessed as 
+    an `AbstractMatrix{S}`.
+
+New `ImputedTableViewMatrix` are expected to be created with the function 
+    `imputedtableviewmatrix`.
+
+# Fields
+- `originaltable::ImputedTable`: original multiple imputation table
+- `columns::Vector{Int}`: indexes of columns from `originaltable` that are included in this 
+    wrapper
+- `index::Int`: index, `1 <= index <= Ni`, for the imputed values included in this view
+- `n_columns::Int`: number of columns
+- `n_rows::Int`: number of rows
+"""
 @auto_hash_equals struct ImputedTableViewMatrix{S} <: AbstractImputedTableViewMatrix{S}
-    originaltable               :: ImputedTable
-    columns                     :: Vector{Int}
-    index                       :: Int
-    n_columns                   :: Int 
-    n_rows                      :: Int
+    originaltable::ImputedTable
+    columns::Vector{Int}
+    index::Int
+    n_columns::Int 
+    n_rows::Int
 
     function ImputedTableViewMatrix{S}(
         originaltable::ImputedTable{Ni}, columns, index, n_columns, n_rows
     ) where {Ni, S}
-        if index > Ni || index <= 0
-            throw(
-                ArgumentError(
-                    "Index ($index) must be positive and no greater than Ni ($Ni)"
-                )
-            )
-        end
-        if n_columns != length(columns)
-            _lc = length(columns)
-            throw(
-                DimensionMismatch(
-                    "n_columns ($n_columns) must equal the number of columns listed ($_lc)"
-                )
-            )
-        end
-        if n_rows != size(originaltable, 1) 
-            _so1 = size(originaltable, 1) 
-            throw(
-                DimensionMismatch(
-                    "n_rows ($n_rows) must equal the length of originaltable ($_so1)"
-                )
-            )
-        end
-
+        0 < index <= Ni || throw(_imputedtableviewerror(index, Ni))
+        n_columns == length(columns) || throw(_imputedtableviewcolerror(n_columns, columns))
+        n_rows == size(originaltable, 1) || throw(_itvre(n_rows, originaltable))
         return new{S}(originaltable, columns, index, n_columns, n_rows)
     end
 end
@@ -71,7 +67,26 @@ function ImputedTableViewMatrix(
     return ImputedTableViewMatrix(originaltable, colsymbols, index)
 end
 
-function imputedtableviewmatrix(originaltable, cols, index)
+"""
+    imputedtableviewmatrix(originaltable::ImputedTable, cols, index)
+    imputedtableviewmatrix(t::ImputedTableView, cols)
+
+Create an `ImputedTableViewMatrix`.
+
+# Arguments
+- `array::MyArray{T}`: the array to search
+- `val::T`: the value to search for
+
+# Keywords
+- `verbose::Bool=true`: print out progress details
+
+# Returns
+- `Int`: the index where `val` is located in the `array`
+
+# Throws
+- `NotFoundError`: I guess we could throw an error if `val` isn't found.
+"""
+function imputedtableviewmatrix(originaltable::ImputedTable, cols, index)
     return ImputedTableViewMatrix(originaltable, cols, index)
 end
 
@@ -165,10 +180,10 @@ function vectorimputedtableviewmatrix(originaltable, cols, indexes=automatic)
     return VectorImputedTableViewMatrix(originaltable, cols, indexes)
 end
 
-iterate(v::ImputedTableViewMatrix) = iterate(v, 1)
-iterate(::ImputedTableViewMatrix, ::Nothing) = nothing
+Base.iterate(v::ImputedTableViewMatrix) = iterate(v, 1)
+Base.iterate(::ImputedTableViewMatrix, ::Nothing) = nothing
 
-function iterate(v::ImputedTableViewMatrix, i::Integer) 
+function Base.iterate(v::ImputedTableViewMatrix, i::Integer) 
     x = getindex(v, i)
     if i == length(v) 
         i_n = nothing 
@@ -178,10 +193,10 @@ function iterate(v::ImputedTableViewMatrix, i::Integer)
     return ( x, i_n )
 end 
 
-iterate(v::VectorImputedTableViewMatrix) = iterate(v, 1)
-iterate(::VectorImputedTableViewMatrix, ::Nothing) = nothing
+Base.iterate(v::VectorImputedTableViewMatrix) = iterate(v, 1)
+Base.iterate(::VectorImputedTableViewMatrix, ::Nothing) = nothing
 
-function iterate(v::VectorImputedTableViewMatrix, i::Integer) 
+function Base.iterate(v::VectorImputedTableViewMatrix, i::Integer) 
     x = getindex(v, i)
     if i == length(v) 
         i_n = nothing 
@@ -200,29 +215,43 @@ function __imputedtableviewtypes(S, T)
     return typeof(one(__imputedtableviewtypes(S))) + typeof(one(__imputedtableviewtypes(T)))
 end
 
-size(M::ImputedTableViewMatrix) = ( M.n_rows, M.n_columns )
-length(M::ImputedTableViewMatrix) = M.n_rows * M.n_columns
+Base.size(M::ImputedTableViewMatrix) = ( M.n_rows, M.n_columns )
+Base.length(M::ImputedTableViewMatrix) = M.n_rows * M.n_columns
 
-size(v::VectorImputedTableViewMatrix) = ( length(v), )
-length(v::VectorImputedTableViewMatrix) = length(v.indexes)
+Base.size(v::VectorImputedTableViewMatrix) = ( length(v), )
+Base.length(v::VectorImputedTableViewMatrix) = length(v.indexes)
 
-function getcolumn(M::ImputedTableViewMatrix, i::Int)
+function Tables.getcolumn(M::ImputedTableViewMatrix, i::Int)
     ind = M.columns[i]
     return getcolumn(M.originaltable, ind)
 end 
 
-function getindex(M::ImputedTableViewMatrix, rownum, colnum)
+function Base.getindex(M::ImputedTableViewMatrix, rownum, colnum)
     ind = M.columns[colnum]
     col = imputedvectorview(getproperty(M.originaltable, ind), M.index)
     return getindex(col, rownum)
 end
 
-function getindex(v::VectorImputedTableViewMatrix{S}, i) where S
+function Base.getindex(v::VectorImputedTableViewMatrix{S}, i) where S
     return ImputedTableViewMatrix{S}(
         v.originaltable,
         v.columns,
         i,
         v.n_columns,
         v.n_rows
+    )
+end
+
+function _imputedtableviewcolerror(n_columns, columns)
+    DimensionMismatch(
+        "n_columns ($n_columns) must equal the number of columns listed ($(length(columns)))"
+    )
+end
+
+_itvre(n_rows, originaltable) = _imputedtableviewrowerror(n_rows, originaltable)
+
+function _imputedtableviewrowerror(n_rows, originaltable)
+    DimensionMismatch(
+        "n_rows ($n_rows) must equal the length of originaltable ($(size(originaltable, 1)))"
     )
 end

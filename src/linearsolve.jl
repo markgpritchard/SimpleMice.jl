@@ -2,7 +2,7 @@
 
 function linearsolveimputedvectorelements(
     A, b::AbstractImputedVector{Ni, S, T}; 
-    alg=LinearSolve.KrylovJL_LSMR()
+    alg=KrylovJL_LSMR()
 ) where {Ni, S, T}
     output = zeros(size(A[1], 2), Ni)
     for i ∈ A.indexes

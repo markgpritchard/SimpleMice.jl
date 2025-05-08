@@ -15,12 +15,6 @@ StaticArrays = "90137ffa-7385-5640-81b9-e52037218182"
 StatsBase = "2913bbd2-ae8a-5f71-8c99-4fb6c76f3a91"
 Tables = "bd369af6-aec1-5ad0-b16a-f7cc5008161c"
 
-[weakdeps]
-GLM = "38e38edf-8417-5370-95a0-9cbb8c7f171a"
-
-[extensions]
-SimpleMiceGLM = "GLM"
-
 [compat]
 AutoHashEquals = "2"
 DataAPI = "1"

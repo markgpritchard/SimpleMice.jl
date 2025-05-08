@@ -1,8 +1,10 @@
 
+using DataFrames
+using GLM
 using SimpleMice
-using Test
-using DataFrames, GLM, StatsBase
 using StableRNGs
+using StatsBase
+using Test
 
 function testexampledf() 
     return DataFrame(
@@ -62,8 +64,8 @@ end
         b = initializemicevector(rng_b, 10, [ 0, 1, 2, missing ])        
         @test a != b
     end
-    @testset "assertion error if no non-missing values" begin       
-        @test_throws AssertionError initializemicevector(1, [ missing ])
+    @testset "exception error if no non-missing values" begin       
+        @test_throws ErrorException initializemicevector(1, [ missing ])
     end
     @testset "count numbers imputed" begin
         @test nimputed(ones(2)) == 0 

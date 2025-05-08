@@ -20,15 +20,15 @@ end
     totalvariance               :: T
 end
 
-iterate(v::ImputedSum) = iterate(v, 1)
-iterate(v::ImputedSum, i) = iterate(v.elementsums, i) 
-getindex(v::ImputedSum, i) = getindex(v.elementsums, i)
-length(v::ImputedSum) = length(v.elementsums)
-size(v::ImputedSum) = size(v.elementsums)
-==(a::ImputedSum, b::AbstractVector) = a.elementsums == b
-==(a::AbstractVector, b::ImputedSum) = a == b.elementsums
+Base.iterate(v::ImputedSum) = iterate(v, 1)
+Base.iterate(v::ImputedSum, i) = iterate(v.elementsums, i) 
+Base.getindex(v::ImputedSum, i) = getindex(v.elementsums, i)
+Base.length(v::ImputedSum) = length(v.elementsums)
+Base.size(v::ImputedSum) = size(v.elementsums)
+Base.:(==)(a::ImputedSum, b::AbstractVector) = a.elementsums == b
+Base.:(==)(a::AbstractVector, b::ImputedSum) = a == b.elementsums
 
-function show(io::IO, ::MIME"text/plain", a::ImputedVariance{Ni, T}) where {Ni, T}
+function Base.show(io::IO, ::MIME"text/plain", a::ImputedVariance{Ni, T}) where {Ni, T}
     print(
         io,
         """
@@ -39,7 +39,7 @@ function show(io::IO, ::MIME"text/plain", a::ImputedVariance{Ni, T}) where {Ni, 
     )
 end
 
-function show(io::IO, ::MIME"text/plain", a::ImputedMean{Ni, T}) where {Ni, T}
+function Base.show(io::IO, ::MIME"text/plain", a::ImputedMean{Ni, T}) where {Ni, T}
     print(
         io,
         """
@@ -50,7 +50,7 @@ function show(io::IO, ::MIME"text/plain", a::ImputedMean{Ni, T}) where {Ni, T}
     )
 end
 
-function sum(v::AbstractImputedVector{Ni, S, T}) where {Ni, S, T}
+function Base.sum(v::AbstractImputedVector{Ni, S, T}) where {Ni, S, T}
     return ImputedSum{Ni, _typeofsum(S, T)}([ sum(imputedvectorview(v, i)) for i ∈ 1:Ni ])
 end
 
@@ -75,7 +75,7 @@ displayelementmeans(m::ImputedVariance) = displayelementmeans(m.mean)
 meanvalue(m::ImputedMean) = m.summarymean
 meanvalue(m::ImputedVariance) = meanvalue(m.mean)
 
-function mean(v::AbstractImputedVector)
+function StatsBase.mean(v::AbstractImputedVector)
     m = imputedmean(v)
     return meanvalue(m)
 end
@@ -133,7 +133,7 @@ end
 displayelementvars(m::ImputedVariance) = m.elementvars
 varvalue(m::ImputedVariance) = m.totalvariance
 
-function var(v::AbstractImputedVector; kwargs...)
+function StatsBase.var(v::AbstractImputedVector; kwargs...)
     v = imputedvar(v; kwargs...)
     return varvalue(v)
 end

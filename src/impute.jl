@@ -13,7 +13,7 @@ function _initializemicevector(rng, Ni, v)
     if Nm == 0 
         return v 
     else 
-        return ImputedVector{Ni}(rng, v, Nm)
+        return imputedvector(rng, Ni, v; Nm)
     end
 end
 
@@ -234,4 +234,4 @@ function _impute(rng, Ni, df, iteratevars, includevars, iterations; multithread=
     return table 
 end
 
-ktypeof(::AbstractImputedVectorView{S}) where S = Vector{S}
+Krylov.ktypeof(::AbstractImputedVectorView{S}) where S = Vector{S}

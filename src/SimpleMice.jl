@@ -1,49 +1,27 @@
 
 module SimpleMice
 
-using LinearSolve, StaticArrays, StatsBase
-using Base.Threads: @threads
 using AutoHashEquals: @auto_hash_equals
+using Base.Threads: @threads
+using DataAPI: DataAPI, describe
 using DataFrames: DataFrame
+using Krylov: Krylov, ktypeof
+using LinearSolve: LinearSolve, KrylovJL_LSMR, LinearProblem, solve
 using PrettyTables: pretty_table
 using Random: AbstractRNG, default_rng
-using Tables: Schema
-
-import Base: 
-    ==, 
-    getindex, 
-    getproperty, 
-    hash, 
-    isapprox, 
-    iterate, 
-    length, 
-    names, 
-    setindex!, 
-    show, 
-    size, 
-    sum,
-    summary
-import DataAPI: describe
-import Krylov: ktypeof
-import StatsBase: 
-    mean, 
-    quantile, 
-    var
-import Tables: 
-    AbstractColumns, 
-    columnnames, 
-    getcolumn, 
-    istable, 
-    schema
+using StaticArrays: MVector, SVector
+using StatsBase: StatsBase, mean, quantile, sample, var
+using Tables: Tables, AbstractColumns, Schema, columnnames, getcolumn, istable, schema
 
 export 
-    ## functions imported from DataAPI 
+    ## functions from DataAPI 
     describe, 
-    ## functions imported from StatsBase 
+    ## functions from StatsBase 
     mean,
     var,
     ## imputedvector.jl
     ImputedVector,
+    imputedvector,
     ## imputedvectorview.jl
     ImputedVectorView,
     imputedvectorview,
@@ -76,8 +54,10 @@ export
     rubinsvar,
     varvalue,
     ## description.jl
+    elementquantile,
     isimputedvalue,
     nimputed,
+    nimputedsets,
     ## linearsolve.jl
     linearsolveimputedvector,
     linearsolveimputedvectorelements
