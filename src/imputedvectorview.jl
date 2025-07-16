@@ -113,7 +113,6 @@ Base.iterate(::AbstractImputedVectorView, ::Nothing) = nothing
 
 function Base.getindex(v::ImputedVectorView{S, T}, i::Integer) where {S, T}
     if isimputedvalue(v, i)
-        j = findfirst(x -> x == i, v.imputedvector.missingindex)
         return S(getindex(v.imputedvector, i)[v.index])
     else
         return S(getindex(v.imputedvector, i))
