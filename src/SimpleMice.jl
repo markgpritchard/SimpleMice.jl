@@ -48,7 +48,9 @@ export elementquantile, isimputedvalue, nimputed, nimputedsets
 ## linearsolve.jl
 export linearsolveimputedvector, linearsolveimputedvectorelements
 
-include("consts.jl")
+struct Automatic end  # not exported
+const automatic = Automatic()  # not exported 
+
 include("imputedvector.jl")
 include("imputedvectorview.jl")
 include("imputedtable.jl")
