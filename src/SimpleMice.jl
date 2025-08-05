@@ -9,58 +9,44 @@ using Krylov: Krylov, ktypeof
 using LinearSolve: LinearSolve, KrylovJL_LSMR, LinearProblem, solve
 using PrettyTables: pretty_table
 using Random: AbstractRNG, default_rng
+using Reexport: @reexport
 using StaticArrays: MVector, SVector
 using StatsBase: StatsBase, mean, quantile, sample, var
 using Tables: Tables, AbstractColumns, Schema, columnnames, getcolumn, istable, schema
 
-export 
-    ## functions from DataAPI 
-    describe, 
-    ## functions from StatsBase 
-    mean,
-    var,
-    ## imputedvector.jl
-    ImputedVector,
-    imputedvector,
-    ## imputedvectorview.jl
-    ImputedVectorView,
-    imputedvectorview,
-    ## imputedtable.jl
-    ImputedTable,
-    getcolumn,
-    ## imputedtableview.jl
-    ImputedTableView,
-    imputedtableview,
-    ## imputedtableviewmatrix.jl 
-    ImputedTableViewMatrix,
-    VectorImputedTableViewMatrix,
-    imputedtableviewmatrix,
-    vectorimputedtableviewmatrix,
-    ## functions.jl
-    nonemissing,
-    ## impute.jl
-    impute,
-    initializemice,
-    initializemicevector,
-    linearupdatemicevalues!,
-    ## rubinsrules.jl
-    betweenimputationvar,
-    displayelementmeans,
-    displayelementvars,
-    elementvar,
-    imputedmean,
-    imputedvar,
-    meanvalue,
-    rubinsvar,
-    varvalue,
-    ## description.jl
-    elementquantile,
-    isimputedvalue,
-    nimputed,
-    nimputedsets,
-    ## linearsolve.jl
-    linearsolveimputedvector,
-    linearsolveimputedvectorelements
+@reexport using DataAPI: describe
+@reexport using StatsBase: mean, var
+@reexport using Tables: getcolumn
+
+## imputedvector.jl
+export ImputedVector, imputedvector
+## imputedvectorview.jl
+export ImputedVectorView, imputedvectorview
+## imputedtable.jl
+export ImputedTable
+## imputedtableview.jl
+export ImputedTableView, imputedtableview
+## imputedtableviewmatrix.jl 
+export ImputedTableViewMatrix, VectorImputedTableViewMatrix
+export imputedtableviewmatrix, vectorimputedtableviewmatrix
+## functions.jl
+export nonemissing
+## impute.jl
+export impute, initializemice, initializemicevector, linearupdatemicevalues!
+## rubinsrules.jl
+export betweenimputationvar
+export displayelementmeans
+export displayelementvars
+export elementvar
+export imputedmean
+export imputedvar
+export meanvalue
+export rubinsvar
+export varvalue
+## description.jl
+export elementquantile, isimputedvalue, nimputed, nimputedsets
+## linearsolve.jl
+export linearsolveimputedvector, linearsolveimputedvectorelements
 
 include("consts.jl")
 include("imputedvector.jl")
